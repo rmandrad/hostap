@@ -2121,10 +2121,9 @@ int ap_sta_pending_delayed_1x_auth_fail_disconnect(struct hostapd_data *hapd,
 }
 
 
-#ifdef CONFIG_IEEE80211BE
-static void ap_sta_remove_link_sta(struct hostapd_data *hapd,
-				   struct sta_info *sta)
+void ap_sta_remove_link_sta(struct hostapd_data *hapd, struct sta_info *sta)
 {
+#ifdef CONFIG_IEEE80211BE
 	struct hostapd_data *tmp_hapd;
 
 	for_each_mld_link(tmp_hapd, hapd) {
@@ -2143,8 +2142,8 @@ static void ap_sta_remove_link_sta(struct hostapd_data *hapd,
 			break;
 		}
 	}
-}
 #endif /* CONFIG_IEEE80211BE */
+}
 
 
 int ap_sta_re_add(struct hostapd_data *hapd, struct sta_info *sta)
