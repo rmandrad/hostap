@@ -1030,4 +1030,7 @@ hostapd_is_uhr_enabled(struct hostapd_data *hapd)
 	return hapd->iconf->ieee80211bn && !hapd->conf->disable_11bn;
 }
 
+struct hostapd_data *
+hostapd_interfaces_get_hapd(struct hapd_interfaces *interfaces,
+			    const char *ifname);
 #endif /* HOSTAPD_H */
