@@ -41,7 +41,9 @@ struct hapd_global {
 
 static struct hapd_global global;
 
+#ifdef RADIUS_SERVER_OPENWRT
 extern int radius_main(int argc, char **argv);
+#endif /* RADIUS_SERVER_OPENWRT */
 
 #ifndef CONFIG_NO_HOSTAPD_LOGGER
 static void hostapd_logger_cb(void *ctx, const u8 *addr, unsigned int module,
@@ -854,7 +856,7 @@ int main(int argc, char *argv[])
 	if (os_program_init())
 		return -1;
 
-#ifdef RADIUS_SERVER
+#ifdef RADIUS_SERVER_OPENWRT
 	if (strstr(argv[0], "radius"))
 		return radius_main(argc, argv);
 #endif

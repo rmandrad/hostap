@@ -63,8 +63,10 @@ endif
 OBJS += main.o
 OBJS += config_file.o
 
-ifdef CONFIG_RADIUS_SERVER
+ifdef CONFIG_RADIUS_SERVER_OPENWRT
+CFLAGS += -DRADIUS_SERVER_OPENWRT
 OBJS += radius.o
+LIBS += -lubox -lblobmsg_json
 endif
 
 OBJS += ../src/ap/hostapd.o
