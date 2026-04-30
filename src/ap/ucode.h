@@ -1,7 +1,7 @@
 #ifndef __HOSTAPD_AP_UCODE_H
 #define __HOSTAPD_AP_UCODE_H
 
-#include "utils/ucode.h"
+#include "utils/common.h"
 
 struct hostapd_data;
 
