@@ -54,6 +54,7 @@
 #include "dpp_supplicant.h"
 #include "pr_supplicant.h"
 #include "nan_supplicant.h"
+#include "ucode.h"
 
 
 #define MAX_OWE_TRANSITION_BSS_SELECT_COUNT 5
@@ -1729,6 +1730,12 @@ struct wpa_ssid * wpa_scan_res_match(struct wpa_supplicant *wpa_s,
 		return NULL;
 	}
 
+	if (!wpas_ucode_bss_allowed(wpa_s, bss)) {
+		if (debug_print)
+			wpa_dbg(wpa_s, MSG_DEBUG, "   skip - denied by ucode handler");
+		return NULL;
+	}
+
 	for (ssid = group; ssid; ssid = only_first_ssid ? NULL : ssid->pnext) {
 		if (wpa_scan_res_ok(wpa_s, ssid, match_ssid, match_ssid_len,
 				    bss, bssid_ignore_count, debug_print, link))
@@ -3139,8 +3146,8 @@ fail:
 static void multi_ap_process_assoc_resp(struct wpa_supplicant *wpa_s,
 					const u8 *ies, size_t ies_len)
 {
+	struct multi_ap_params *multi_ap = &wpa_s->multi_ap;
 	struct ieee802_11_elems elems;
-	struct multi_ap_params multi_ap;
 	u16 status;
 
 	wpa_s->multi_ap_ie = 0;
@@ -3151,13 +3158,13 @@ static void multi_ap_process_assoc_resp(struct wpa_supplicant *wpa_s,
 		return;
 
 	status = check_multi_ap_ie(elems.multi_ap + 4, elems.multi_ap_len - 4,
-				   &multi_ap);
+				   multi_ap);
 	if (status != WLAN_STATUS_SUCCESS)
 		return;
 
-	wpa_s->multi_ap_backhaul = !!(multi_ap.capability &
+	wpa_s->multi_ap_backhaul = !!(multi_ap->capability &
 				      MULTI_AP_BACKHAUL_BSS);
-	wpa_s->multi_ap_fronthaul = !!(multi_ap.capability &
+	wpa_s->multi_ap_fronthaul = !!(multi_ap->capability &
 				       MULTI_AP_FRONTHAUL_BSS);
 	wpa_s->multi_ap_ie = 1;
 }
@@ -5858,6 +5865,13 @@ static void wpas_event_rx_mgmt_action(struct wpa_supplicant *wpa_s,
 	}
 #endif /* CONFIG_WNM */
 
+#if defined(CONFIG_GAS) && defined(CONFIG_DPP)
+	if ((mgmt->u.action.category == WLAN_ACTION_PUBLIC ||
+	     mgmt->u.action.category == WLAN_ACTION_PROTECTED_DUAL) &&
+	    wpas_ucode_dpp_gas_rx(wpa_s, mgmt->sa, payload, plen, freq))
+		return;
+#endif /* CONFIG_GAS && CONFIG_DPP */
+
 #ifdef CONFIG_GAS
 	if ((mgmt->u.action.category == WLAN_ACTION_PUBLIC ||
 	     mgmt->u.action.category == WLAN_ACTION_PROTECTED_DUAL) &&
@@ -6645,8 +6659,8 @@ static int wpas_pasn_auth(struct wpa_supplicant *wpa_s,
 #endif /* CONFIG_PASN */
 
 
-void wpa_supplicant_event(void *ctx, enum wpa_event_type event,
-			  union wpa_event_data *data)
+void supplicant_event(void *ctx, enum wpa_event_type event,
+		      union wpa_event_data *data)
 {
 	struct wpa_supplicant *wpa_s = ctx;
 	int resched;
@@ -6681,6 +6695,7 @@ void wpa_supplicant_event(void *ctx, enum wpa_event_type event,
 		event_to_string(event), event);
 #endif /* CONFIG_NO_STDOUT_DEBUG */
 
+	wpas_ucode_event(wpa_s, event, data);
 	switch (event) {
 	case EVENT_AUTH:
 #ifdef CONFIG_FST
@@ -7660,7 +7675,7 @@ void wpa_supplicant_event(void *ctx, enum wpa_event_type event,
 }
 
 
-void wpa_supplicant_event_global(void *ctx, enum wpa_event_type event,
+void supplicant_event_global(void *ctx, enum wpa_event_type event,
 				 union wpa_event_data *data)
 {
 	struct wpa_supplicant *wpa_s;
