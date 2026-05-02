@@ -814,6 +814,7 @@ static size_t hostapd_probe_resp_elems_len(struct hostapd_data *hapd,
 					 params->known_bss,
 					 params->known_bss_len, NULL);
 	buflen += hostapd_eid_rnr_len(hapd, WLAN_FC_STYPE_PROBE_RESP, true);
+	buflen += hostapd_eid_wmm_len(hapd);
 	buflen += hostapd_mbo_ie_len(hapd);
 	buflen += hostapd_eid_owe_trans_len(hapd);
 	buflen += hostapd_eid_dpp_cc_len(hapd);
@@ -1461,7 +1462,9 @@ void handle_probe_req(struct hostapd_data *hapd,
 	int ret;
 	u16 csa_offs[2];
 	size_t csa_offs_len;
+	/* We're not able to retrieve MLD address here
 	struct radius_sta rad_info;
+	*/
 	struct probe_resp_params params;
 	char *hex = NULL;
 #ifdef CONFIG_IEEE80211BE
@@ -1486,6 +1489,7 @@ void handle_probe_req(struct hostapd_data *hapd,
 		sta_track_add(hapd->iface, mgmt->sa, ssi_signal);
 	ie_len = len - IEEE80211_HDRLEN;
 
+	/* We're not able to retrieve MLD address here
 	ret = hostapd_allowed_address(hapd, mgmt->sa, (const u8 *) mgmt, len,
 				      &rad_info, 1);
 	if (ret == HOSTAPD_ACL_REJECT) {
@@ -1494,6 +1498,7 @@ void handle_probe_req(struct hostapd_data *hapd,
 			" due to ACL reject ", MAC2STR(mgmt->sa));
 		return;
 	}
+	*/
 
 	for (i = 0; hapd->probereq_cb && i < hapd->num_probereq_cb; i++)
 		if (hapd->probereq_cb[i].cb(hapd->probereq_cb[i].ctx,
@@ -2315,6 +2320,7 @@ int ieee802_11_build_ap_params(struct hostapd_data *hapd,
 	    hapd == hostapd_mbssid_get_tx_bss(hapd))
 		tail_len += 5; /* Multiple BSSID Configuration element */
 	tail_len += hostapd_eid_rnr_len(hapd, WLAN_FC_STYPE_BEACON, true);
+	tail_len += hostapd_eid_wmm_len(hapd);
 	tail_len += hostapd_mbo_ie_len(hapd);
 	tail_len += hostapd_eid_owe_trans_len(hapd);
 	tail_len += hostapd_eid_dpp_cc_len(hapd);
@@ -2891,6 +2897,7 @@ static bool is_restricted_eid_in_sta_profile(u8 eid, bool tx_vap)
 	case WLAN_EID_MULTIPLE_BSSID:
 	case WLAN_EID_REDUCED_NEIGHBOR_REPORT:
 	case WLAN_EID_NEIGHBOR_REPORT:
+	case WLAN_EID_FILS_INDICATION:
 		return true;
 	case WLAN_EID_SSID:
 		/* SSID is not restricted for non-transmitted BSSID */

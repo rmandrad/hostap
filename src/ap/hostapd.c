@@ -4581,23 +4581,26 @@ int hostapd_change_config_freq(struct hostapd_data *hapd,
 	mode = hapd->iface->current_mode;
 
 	/* if a pointer to old_params is provided we save previous state */
-	if (old_params &&
-	    hostapd_set_freq_params(old_params, conf->hw_mode,
-				    hostapd_hw_get_freq(hapd, conf->channel),
-				    conf->channel, conf->enable_edmg,
-				    conf->edmg_channel, conf->ieee80211n,
-				    conf->ieee80211ac, conf->ieee80211ax,
-				    conf->ieee80211be, conf->secondary_channel,
-				    hostapd_get_oper_chwidth(conf),
-				    hostapd_get_oper_centr_freq_seg0_idx(conf),
-				    hostapd_get_oper_centr_freq_seg1_idx(conf),
-				    conf->vht_capab,
-				    mode ? &mode->he_capab[IEEE80211_MODE_AP] :
-				    NULL,
-				    mode ? &mode->eht_capab[IEEE80211_MODE_AP] :
-				    NULL,
-				    hostapd_get_punct_bitmap(hapd)))
-		return -1;
+	if (old_params) {
+		if (hostapd_set_freq_params(old_params, conf->hw_mode,
+					    hostapd_hw_get_freq(hapd, conf->channel),
+					    conf->channel, conf->enable_edmg,
+					    conf->edmg_channel, conf->ieee80211n,
+					    conf->ieee80211ac, conf->ieee80211ax,
+					    conf->ieee80211be, conf->secondary_channel,
+					    hostapd_get_oper_chwidth(conf),
+					    hostapd_get_oper_centr_freq_seg0_idx(conf),
+					    hostapd_get_oper_centr_freq_seg1_idx(conf),
+					    conf->vht_capab,
+					    mode ? &mode->he_capab[IEEE80211_MODE_AP] :
+					    NULL,
+					    mode ? &mode->eht_capab[IEEE80211_MODE_AP] :
+					    NULL,
+					    hostapd_get_punct_bitmap(hapd)))
+			return -1;
+
+		old_params->op_class = conf->op_class;
+	}
 
 	switch (params->bandwidth) {
 	case 0:
@@ -4642,6 +4645,7 @@ int hostapd_change_config_freq(struct hostapd_data *hapd,
 	conf->ieee80211n = params->ht_enabled;
 	conf->ieee80211ac = params->vht_enabled;
 	conf->secondary_channel = params->sec_channel_offset;
+	conf->op_class = params->op_class;
 	if (params->center_freq1 &&
 	    ieee80211_freq_to_chan(params->center_freq1, &seg0) ==
 	    NUM_HOSTAPD_MODES)
@@ -4726,6 +4730,7 @@ static int hostapd_fill_csa_settings(struct hostapd_data *hapd,
 
 	settings->freq_params.channel = chan;
 
+	settings->freq_params.op_class = hapd->iface->cs_oper_class;
 	ret = hostapd_change_config_freq(iface->bss[0], iface->conf,
 					 &settings->freq_params,
 					 &old_freq);
@@ -4923,6 +4928,13 @@ hostapd_switch_channel_fallback(struct hostapd_iface *iface,
 			   freq_params->bandwidth);
 		break;
 	}
+
+	if ((iface->current_mode->ht_capab & HT_CAP_INFO_SUPP_CHANNEL_WIDTH_SET) &&
+	    freq_params->bandwidth > 20)
+		iface->conf->ht_capab |= HT_CAP_INFO_SUPP_CHANNEL_WIDTH_SET;
+	if ((iface->current_mode->vht_capab & VHT_CAP_SUPP_CHAN_WIDTH_160MHZ) &&
+	    freq_params->bandwidth == 160)
+		iface->conf->vht_capab |= VHT_CAP_SUPP_CHAN_WIDTH_160MHZ;
 
 	iface->freq = freq_params->freq;
 	iface->conf->channel = freq_params->channel;

@@ -6256,6 +6256,8 @@ void ieee80211_ml_build_assoc_resp(struct hostapd_data *hapd,
 		p += wpabuf_len(hapd->conf->assocresp_elements);
 	}
 
+	p = hostapd_eid_non_inheritance(hapd, p);
+
 out:
 	os_free(link->resp_sta_profile);
 	link->resp_sta_profile = os_memdup(buf, p - buf);
@@ -7235,6 +7237,7 @@ static void handle_assoc(struct hostapd_data *hapd,
 	int omit_rsnxe = 0;
 	bool set_beacon = false;
 	bool mld_addrs_not_translated = false;
+	bool sae_pk = false;
 
 	if (len < IEEE80211_HDRLEN + (reassoc ? sizeof(mgmt->u.reassoc_req) :
 				      sizeof(mgmt->u.assoc_req))) {
@@ -7494,12 +7497,27 @@ static void handle_assoc(struct hostapd_data *hapd,
 			       reassoc ? LINK_PARSE_REASSOC : LINK_PARSE_ASSOC);
 	if (resp != WLAN_STATUS_SUCCESS)
 		goto fail;
+
 #ifdef CONFIG_IEEE80211R_AP
 	if (reassoc && sta->auth_alg == WLAN_AUTH_FT)
 		omit_rsnxe = !get_ie(pos, left, WLAN_EID_RSNX);
 #endif /* CONFIG_IEEE80211R_AP */
 	if (hapd->conf->rsn_override_omit_rsnxe)
 		omit_rsnxe = 1;
+
+	/* TODO: check if this section is needed */
+	omit_rsnxe = !get_ie(pos, left, WLAN_EID_RSNX);
+#ifdef CONFIG_SAE_PK
+	sae_pk = hostapd_sae_pk_in_use(hapd->conf);
+#endif /* CONFIG_SAE_PK */
+	if (omit_rsnxe) {
+		if (!reassoc && wpa_key_mgmt_sae(hapd->conf->wpa_key_mgmt) &&
+				(hapd->conf->sae_pwe == SAE_PWE_HASH_TO_ELEMENT ||
+				 hapd->conf->sae_pwe == SAE_PWE_BOTH || sae_pk ||
+				 wpa_key_mgmt_sae_ext_key(hapd->conf->wpa_key_mgmt))) {
+			omit_rsnxe = 0;
+		}
+	}
 
 	if (hostapd_get_aid(hapd, sta) < 0) {
 		hostapd_logger(hapd, mgmt->sa, HOSTAPD_MODULE_IEEE80211,
@@ -7552,7 +7570,7 @@ static void handle_assoc(struct hostapd_data *hapd,
 			set_beacon = true;
 	}
 
-	if (update_ht_state(hapd, sta) > 0)
+	if (!is_6ghz_op_class(hapd->iconf->op_class) && update_ht_state(hapd, sta) > 0)
 		set_beacon = true;
 
 	hostapd_logger(hapd, sta->addr, HOSTAPD_MODULE_IEEE80211,
