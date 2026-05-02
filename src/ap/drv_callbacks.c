@@ -1431,6 +1431,7 @@ void hostapd_event_ch_switch(struct hostapd_data *hapd, int freq, int ht,
 	    freq == hapd->cs_freq_params.freq) {
 		hostapd_cleanup_cs_params(hapd);
 		ieee802_11_set_beacon(hapd);
+		ieee802_11_set_beacon_for_colocat(hapd);
 
 		wpa_msg(hapd->msg_ctx, MSG_INFO, AP_CSA_FINISHED
 			"freq=%d dfs=%d", freq, is_dfs);

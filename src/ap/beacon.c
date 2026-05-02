@@ -406,8 +406,7 @@ static u8 * hostapd_get_wpa_ie(struct hostapd_data *hapd, u8 *pos, size_t len)
 }
 
 
-static u8 * hostapd_get_rsne_override(struct hostapd_data *hapd, u8 *pos,
-				      size_t len)
+u8 * hostapd_get_rsne_override(struct hostapd_data *hapd, u8 *pos, size_t len)
 {
 	const u8 *ie;
 
@@ -420,8 +419,7 @@ static u8 * hostapd_get_rsne_override(struct hostapd_data *hapd, u8 *pos,
 }
 
 
-static u8 * hostapd_get_rsne_override_2(struct hostapd_data *hapd, u8 *pos,
-					size_t len)
+u8 * hostapd_get_rsne_override_2(struct hostapd_data *hapd, u8 *pos, size_t len)
 {
 	const u8 *ie;
 
@@ -434,8 +432,7 @@ static u8 * hostapd_get_rsne_override_2(struct hostapd_data *hapd, u8 *pos,
 }
 
 
-static u8 * hostapd_get_rsnxe_override(struct hostapd_data *hapd, u8 *pos,
-				       size_t len)
+u8 * hostapd_get_rsnxe_override(struct hostapd_data *hapd, u8 *pos, size_t len)
 {
 	const u8 *ie;
 
@@ -448,7 +445,7 @@ static u8 * hostapd_get_rsnxe_override(struct hostapd_data *hapd, u8 *pos,
 }
 
 
-static size_t hostapd_get_rsne_override_len(struct hostapd_data *hapd)
+size_t hostapd_get_rsne_override_len(struct hostapd_data *hapd)
 {
 	const u8 *ie;
 
@@ -459,7 +456,7 @@ static size_t hostapd_get_rsne_override_len(struct hostapd_data *hapd)
 }
 
 
-static size_t hostapd_get_rsne_override_2_len(struct hostapd_data *hapd)
+size_t hostapd_get_rsne_override_2_len(struct hostapd_data *hapd)
 {
 	const u8 *ie;
 
@@ -470,7 +467,7 @@ static size_t hostapd_get_rsne_override_2_len(struct hostapd_data *hapd)
 }
 
 
-static size_t hostapd_get_rsnxe_override_len(struct hostapd_data *hapd)
+size_t hostapd_get_rsnxe_override_len(struct hostapd_data *hapd)
 {
 	const u8 *ie;
 
@@ -496,6 +493,40 @@ static u8 * hostapd_eid_csa(struct hostapd_data *hapd, u8 *eid)
 	*eid++ = hapd->cs_block_tx;
 	*eid++ = hapd->cs_freq_params.channel;
 	*eid++ = hapd->cs_count;
+
+	return eid;
+}
+
+
+static u8 * hostapd_eid_sec_chan_offs(struct hostapd_data *hapd, u8 *eid)
+{
+#define SEC_CHAN_OFFS_BELOW	0x3
+	int sec;
+
+	if (!hapd->iconf->ieee80211n || hapd->conf->disable_11n ||
+	    is_6ghz_op_class(hapd->iconf->op_class) ||
+	    !hapd->cs_freq_params.channel)
+		return eid;
+
+	sec = hapd->cs_freq_params.sec_channel_offset;
+#ifdef CONFIG_IEEE80211BE
+	if (hapd->cs_freq_params.punct_bitmap && sec) {
+		u32 start_freq;
+		u16 pri_ch_pos;
+		u16 sec_ch_bit_pos;
+
+		start_freq = hapd->cs_freq_params.center_freq1 -
+			(hapd->cs_freq_params.bandwidth / 2);
+		pri_ch_pos = (hapd->cs_freq_params.freq - start_freq) / 20;
+		sec_ch_bit_pos = BIT(pri_ch_pos + sec);
+		if (hapd->cs_freq_params.punct_bitmap & sec_ch_bit_pos)
+			sec = 0;
+	}
+#endif /* CONFIG_IEEE80211BE */
+
+	*eid++ = WLAN_EID_SECONDARY_CHANNEL_OFFSET;
+	*eid++ = 1;
+	*eid++ = sec < 0 ? SEC_CHAN_OFFS_BELOW : sec;
 
 	return eid;
 }
@@ -862,6 +893,9 @@ static u8 * hostapd_probe_resp_fill_elems(struct hostapd_data *hapd,
 	else
 		params->csa_pos = NULL;
 	pos = csa_pos;
+
+	/* Secondary Channel Offset element */
+	pos = hostapd_eid_sec_chan_offs(hapd, pos);
 
 	/* ERP Information element */
 	pos = hostapd_eid_erp_info(hapd, pos);
@@ -2393,6 +2427,9 @@ int ieee802_11_build_ap_params(struct hostapd_data *hapd,
 		hapd->cs_c_off_beacon = csa_pos - tail - 1;
 	tailpos = csa_pos;
 
+	/* Secondary Channel Offset element */
+	tailpos = hostapd_eid_sec_chan_offs(hapd, tailpos);
+
 	/* ERP Information element */
 	tailpos = hostapd_eid_erp_info(hapd, tailpos);
 
@@ -2881,9 +2918,23 @@ fail:
 }
 
 
-void ieee802_11_set_beacon_per_bss_only(struct hostapd_data *hapd)
+int ieee802_11_set_beacon_per_bss_only(struct hostapd_data *hapd)
 {
-	__ieee802_11_set_beacon(hapd);
+	return __ieee802_11_set_beacon(hapd);
+}
+
+int ieee802_11_set_beacon_per_iface_only(struct hostapd_iface *iface)
+{
+	size_t i;
+	int ret = 0;
+
+	for (i = 0; i < iface->num_bss; i++) {
+		if (iface->bss[i]->started &&
+		    __ieee802_11_set_beacon(iface->bss[i]) < 0)
+			ret = -1;
+	}
+
+	return ret;
 }
 
 
@@ -2959,8 +3010,9 @@ static size_t hostapd_add_sta_profile(struct ieee80211_mgmt *link_fdata,
 	bool ie_found;
 	u8 non_inherit_ele_ext_list[256] = { 0 };
 	u8 non_inherit_ele_ext_list_len = 0;
-	u8 non_inherit_ele_list[256] = { 0 };
-	u8 non_inherit_ele_list_len = 0;
+	u8 non_inherit_ele_list[256] = { WLAN_EID_VHT_CAP,
+					 WLAN_EID_VHT_OPERATION };
+	u8 non_inherit_ele_list_len = 2;
 	u8 num_link_elem_vendor_ies = 0, num_own_elem_vendor_ies = 0;
 	bool add_vendor_ies = false, is_identical_vendor_ies = true;
 	/* The bitmap of parsed EIDs. There are 256 EIDs and ext EIDs, so 32
@@ -3222,7 +3274,7 @@ static u8 * hostapd_gen_sta_profile(struct ieee80211_mgmt *link_data,
 }
 
 
-static void hostapd_gen_per_sta_profiles(struct hostapd_data *hapd)
+void hostapd_gen_per_sta_profiles(struct hostapd_data *hapd)
 {
 	bool tx_vap = hapd == hostapd_mbssid_get_tx_bss(hapd);
 	size_t link_data_len, sta_profile_len;
@@ -3386,6 +3438,73 @@ int ieee802_11_set_beacon(struct hostapd_data *hapd)
 
 	return 0;
 }
+
+int ieee802_11_set_beacon_for_colocat(struct hostapd_data *hapd)
+{
+	struct hostapd_iface *iface = hapd->iface;
+	size_t i, j;
+
+	/* Avoid duplicate beacon updates triggered by the channel switch event
+	 * of each 6 GHz BSS. */
+	if (!is_6ghz_op_class(iface->conf->op_class) || hapd != iface->bss[0])
+		return 0;
+
+	if (!iface->interfaces)
+		return 0;
+
+	for (i = 0; i < iface->interfaces->count; i++) {
+		struct hostapd_iface *other = iface->interfaces->iface[i];
+
+		if (other == iface || !other || !other->conf ||
+		    is_6ghz_op_class(other->conf->op_class))
+			continue;
+
+		for (j = 0; j < other->num_bss; j++) {
+			struct hostapd_data *bss = other->bss[j];
+#ifdef CONFIG_IEEE80211BE
+			struct hostapd_data *tmp;
+			bool skip = false;
+
+			/* Update beacon frames for colocated AP MLDs without a
+			 * 6 GHz link. AP MLDs with a 6 GHz link get updated by
+			 * the channel switch path for that link. */
+			if (bss && bss->conf->mld_ap) {
+				for_each_mld_link(tmp, bss) {
+					if (tmp != bss && tmp->started &&
+					    is_6ghz_op_class(tmp->iconf->op_class)) {
+						skip = true;
+						break;
+					}
+				}
+
+				if (skip)
+					continue;
+			}
+#endif /* CONFIG_IEEE80211BE */
+
+			if (bss && bss->started)
+				__ieee802_11_set_beacon(bss);
+		}
+	}
+
+	return 0;
+}
+
+
+#ifdef CONFIG_IEEE80211BE
+int ieee802_11_set_bss_critical_update(struct hostapd_data *hapd,
+				       enum bss_crit_update_event event)
+{
+	if (event != BSS_CRIT_UPDATE_EVENT_CSA || !hapd->conf->mld_ap)
+		return 0;
+
+	hapd->eht_mld_bss_param_change++;
+	if (hapd->eht_mld_bss_param_change == 255)
+		hapd->eht_mld_bss_param_change = 0;
+
+	return 0;
+}
+#endif /* CONFIG_IEEE80211BE */
 
 
 int ieee802_11_set_beacons(struct hostapd_iface *iface)

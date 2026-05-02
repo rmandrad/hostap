@@ -2875,8 +2875,15 @@ dfs_offload:
 	for (j = 0; j < iface->num_bss; j++)
 		hostapd_neighbor_set_own_report(iface->bss[j]);
 
-	if (iface->interfaces && iface->interfaces->count > 1)
-		ieee802_11_update_beacons(iface);
+	if (iface->interfaces) {
+		for (j = 0; j < iface->interfaces->count; j++) {
+			if (iface == iface->interfaces->iface[j])
+				continue;
+
+			ieee802_11_set_beacon_per_iface_only(
+				iface->interfaces->iface[j]);
+		}
+	}
 
 	return 0;
 
@@ -4886,12 +4893,25 @@ void hostapd_chan_switch_config(struct hostapd_data *hapd,
 int hostapd_switch_channel(struct hostapd_data *hapd,
 			   struct csa_settings *settings)
 {
+#ifdef CONFIG_IEEE80211BE
+	struct hostapd_data *link_bss;
+#endif /* CONFIG_IEEE80211BE */
 	int ret;
 
 	if (!(hapd->iface->drv_flags & WPA_DRIVER_FLAGS_AP_CSA)) {
 		wpa_printf(MSG_INFO, "CSA is not supported");
 		return -1;
 	}
+
+#ifdef CONFIG_IEEE80211BE
+	ieee802_11_set_bss_critical_update(hapd, BSS_CRIT_UPDATE_EVENT_CSA);
+
+	if (hapd->conf->mld_ap) {
+		/* Generate per STA profiles for each affiliated AP. */
+		for_each_mld_link(link_bss, hapd)
+			hostapd_gen_per_sta_profiles(link_bss);
+	}
+#endif /* CONFIG_IEEE80211BE */
 
 	ret = hostapd_fill_csa_settings(hapd, settings);
 	if (ret)

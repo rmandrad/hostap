@@ -12,10 +12,21 @@
 
 struct ieee80211_mgmt;
 
+#ifdef CONFIG_IEEE80211BE
+enum bss_crit_update_event {
+	BSS_CRIT_UPDATE_EVENT_CSA,
+};
+
+int ieee802_11_set_bss_critical_update(struct hostapd_data *hapd,
+				       enum bss_crit_update_event event);
+#endif /* CONFIG_IEEE80211BE */
+
 void handle_probe_req(struct hostapd_data *hapd,
 		      const struct ieee80211_mgmt *mgmt, size_t len,
 		      int ssi_signal);
-void ieee802_11_set_beacon_per_bss_only(struct hostapd_data *hapd);
+int ieee802_11_set_beacon_per_bss_only(struct hostapd_data *hapd);
+int ieee802_11_set_beacon_per_iface_only(struct hostapd_iface *iface);
+int ieee802_11_set_beacon_for_colocat(struct hostapd_data *hapd);
 int ieee802_11_set_beacon(struct hostapd_data *hapd);
 int ieee802_11_set_beacons(struct hostapd_iface *iface);
 int ieee802_11_update_beacons(struct hostapd_iface *iface);
@@ -35,5 +46,12 @@ const u8 * hostapd_wpa_ie(struct hostapd_data *hapd, u8 eid);
 
 u8 * hostapd_unsol_bcast_probe_resp(struct hostapd_data *hapd,
 				    struct unsol_bcast_probe_resp *ubpr);
+void hostapd_gen_per_sta_profiles(struct hostapd_data *hapd);
+u8 * hostapd_get_rsne_override(struct hostapd_data *hapd, u8 *pos, size_t len);
+u8 * hostapd_get_rsne_override_2(struct hostapd_data *hapd, u8 *pos, size_t len);
+u8 * hostapd_get_rsnxe_override(struct hostapd_data *hapd, u8 *pos, size_t len);
+size_t hostapd_get_rsne_override_len(struct hostapd_data *hapd);
+size_t hostapd_get_rsne_override_2_len(struct hostapd_data *hapd);
+size_t hostapd_get_rsnxe_override_len(struct hostapd_data *hapd);
 
 #endif /* BEACON_H */
