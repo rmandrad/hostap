@@ -403,13 +403,13 @@ int hostapd_set_wds_sta(struct hostapd_data *hapd, char *ifname_wds,
 	if (hapd->conf->apup && hapd->conf->apup_peer_ifname_prefix[0]) {
 		mRet = os_snprintf(
 		            ifName, sizeof(ifName), "%s%d",
-		            hapd->conf->apup_peer_ifname_prefix, aid);
+		            hapd->conf->apup_peer_ifname_prefix, aid - 64);
 	}
 	else
 #endif // def CONFIG_APUP
 		mRet = os_snprintf(
 		            ifName, sizeof(ifName), "%s.sta%d",
-		            hapd->conf->iface, aid);
+		            hapd->conf->iface, aid - 64);
 
 	if (mRet >= (int) sizeof(ifName))
 		wpa_printf(MSG_WARNING,
@@ -1132,6 +1132,15 @@ int hostapd_start_dfs_cac(struct hostapd_iface *iface,
 		return -1;
 	}
 	data.radar_background = radar_background;
+	data.link_id = -1;
+
+#ifdef CONFIG_IEEE80211BE
+	if (hapd->conf->mld_ap) {
+		data.link_id = hapd->mld_link_id;
+		wpa_printf(MSG_DEBUG,
+			   "hostapd_start_dfs_cac: link_id=%d", data.link_id);
+	}
+#endif /* CONFIG_IEEE80211BE */
 
 	data.link_id = -1;
 #ifdef CONFIG_IEEE80211BE

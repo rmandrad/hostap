@@ -49,6 +49,9 @@ static void ap_sta_disassoc_cb_timeout(void *eloop_ctx, void *timeout_ctx);
 static void ap_sa_query_timer(void *eloop_ctx, void *timeout_ctx);
 static int ap_sta_remove(struct hostapd_data *hapd, struct sta_info *sta);
 static void ap_sta_delayed_1x_auth_fail_cb(void *eloop_ctx, void *timeout_ctx);
+#ifdef CONFIG_IEEE80211BE
+static void ap_sta_remove_link_sta(struct hostapd_data *hapd, struct sta_info *sta);
+#endif /* CONFIG_IEEE80211BE */
 
 int ap_for_each_sta(struct hostapd_data *hapd,
 		    int (*cb)(struct hostapd_data *hapd, struct sta_info *sta,
@@ -302,9 +305,11 @@ void ap_free_sta(struct hostapd_data *hapd, struct sta_info *sta)
 	ap_sta_hash_del(hapd, sta);
 	ap_sta_list_del(hapd, sta);
 
-	if (sta->aid > 0)
-		hapd->sta_aid[(sta->aid - 1) / 32] &=
-			~BIT((sta->aid - 1) % 32);
+	if (sta->aid - 64 > 0) {
+		struct hostapd_data *tx_bss = hostapd_mbssid_get_tx_bss(hapd);
+		tx_bss->sta_aid[(sta->aid - 1 - 64) / 32] &=
+			~BIT((sta->aid - 1 - 64) % 32);
+	}
 
 	hapd->num_sta--;
 	if (sta->nonerp_set) {
@@ -565,6 +570,10 @@ void hostapd_free_stas(struct hostapd_data *hapd)
 		sta = sta->next;
 		wpa_printf(MSG_DEBUG, "Removing station " MACSTR,
 			   MAC2STR(prev->addr));
+#ifdef CONFIG_IEEE80211BE
+		if (ap_sta_is_mld(hapd, prev))
+			ap_sta_remove_link_sta(hapd, prev);
+#endif /* CONFIG_IEEE80211BE */
 		ap_free_sta(hapd, prev);
 	}
 }
@@ -615,6 +624,10 @@ void ap_handle_timer(void *eloop_ctx, void *timeout_ctx)
 			       HOSTAPD_LEVEL_INFO, "deauthenticated due to "
 			       "local deauth request");
 		hostapd_ubus_notify(hapd, "local-deauth", sta->addr);
+#ifdef CONFIG_IEEE80211BE
+		if (ap_sta_is_mld(hapd, sta))
+			ap_sta_remove_link_sta(hapd, sta);
+#endif /* CONFIG_IEEE80211BE */
 		ap_free_sta(hapd, sta);
 		return;
 	}
@@ -784,6 +797,10 @@ skip_poll:
 			hapd, sta,
 			WLAN_REASON_PREV_AUTH_NOT_VALID);
 		hostapd_ubus_notify(hapd, "inactive-deauth", sta->addr);
+#ifdef CONFIG_IEEE80211BE
+		if (ap_sta_is_mld(hapd, sta))
+			ap_sta_remove_link_sta(hapd, sta);
+#endif /* CONFIG_IEEE80211BE */
 		ap_free_sta(hapd, sta);
 		break;
 	}
@@ -816,6 +833,10 @@ static void ap_handle_session_timer(void *eloop_ctx, void *timeout_ctx)
 		       "session timeout");
 	sta->acct_terminate_cause =
 		RADIUS_ACCT_TERMINATE_CAUSE_SESSION_TIMEOUT;
+#ifdef CONFIG_IEEE80211BE
+	if (ap_sta_is_mld(hapd, sta))
+		ap_sta_remove_link_sta(hapd, sta);
+#endif /* CONFIG_IEEE80211BE */
 	ap_free_sta(hapd, sta);
 }
 
@@ -890,8 +911,13 @@ static void ap_sta_assoc_timeout(void *eloop_ctx, void *timeout_ctx)
 	if (sta->flags & WLAN_STA_AUTH)
 		ap_sta_deauthenticate(hapd, sta,
 				      WLAN_REASON_PREV_AUTH_NOT_VALID);
-	else
+	else {
+#ifdef CONFIG_IEEE80211BE
+		if (ap_sta_is_mld(hapd, sta))
+			ap_sta_remove_link_sta(hapd, sta);
+#endif /* CONFIG_IEEE80211BE */
 		ap_free_sta(hapd, sta);
+	}
 }
 
 

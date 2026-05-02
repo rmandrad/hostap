@@ -756,6 +756,29 @@ uc_hostapd_iface_switch_channel(uc_vm_t *vm, size_t nargs)
 }
 
 static uc_value_t *
+uc_hostapd_iface_is_mld_finished(uc_vm_t *vm, size_t nargs)
+{
+	struct hostapd_iface *iface = uc_fn_thisval("hostapd.iface");
+	bool finished = true;
+	int i;
+
+	for (i = 0; i < iface->num_bss; i++) {
+		struct hostapd_data *bss = iface->bss[i];
+
+		if (bss->conf->mld_ap && bss->mld) {
+			if (bss->conf->mld_allowed_links > 0 &&
+			    (1 << bss->mld->refcount) - 1 !=
+			    bss->conf->mld_allowed_links) {
+				finished = false;
+				break;
+			}
+		}
+	}
+
+	return ucv_boolean_new(finished);
+}
+
+static uc_value_t *
 uc_hostapd_bss_rename(uc_vm_t *vm, size_t nargs)
 {
 	struct hostapd_data *hapd = uc_fn_thisval("hostapd.bss");
@@ -788,8 +811,8 @@ uc_hostapd_bss_rename(uc_vm_t *vm, size_t nargs)
 		if (!(sta->flags & WLAN_STA_WDS) || sta->pending_wds_enable)
 			continue;
 
-		snprintf(cur_name, sizeof(cur_name), "%s.sta%d", prev_ifname, sta->aid);
-		snprintf(new_name, sizeof(new_name), "%s.sta%d", ifname, sta->aid);
+		snprintf(cur_name, sizeof(cur_name), "%s.sta%d", prev_ifname, sta->aid - 64);
+		snprintf(new_name, sizeof(new_name), "%s.sta%d", ifname, sta->aid - 64);
 		hostapd_drv_if_rename(hapd, WPA_IF_AP_VLAN, cur_name, new_name);
 	}
 
@@ -1211,6 +1234,7 @@ int hostapd_ucode_init(struct hapd_interfaces *ifaces)
 		{ "stop", uc_hostapd_iface_stop },
 		{ "start", uc_hostapd_iface_start },
 		{ "switch_channel", uc_hostapd_iface_switch_channel },
+		{ "is_mld_finished", uc_hostapd_iface_is_mld_finished },
 	};
 	uc_value_t *data, *proto;
 

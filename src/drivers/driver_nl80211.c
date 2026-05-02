@@ -5985,7 +5985,8 @@ static int wpa_driver_nl80211_set_ap(void *priv,
 			goto fail;
 	}
 
-	if (params->ubpr.unsol_bcast_probe_resp_interval &&
+	if (params->freq && is_6ghz_freq(params->freq->freq) &&
+	    params->ubpr.unsol_bcast_probe_resp_interval &&
 	    nl80211_unsol_bcast_probe_resp(bss, msg, &params->ubpr) < 0)
 		goto fail;
 
@@ -9187,10 +9188,13 @@ static int i802_set_wds_sta(void *priv, const u8 *addr, int aid, int val,
 {
 	struct i802_bss *bss = priv;
 	struct wpa_driver_nl80211_data *drv = bss->drv;
-	const char *name = ifname_wds; // Kept to reduce changes to the minimum
+	char name[IFNAMSIZ + 1];
 	union wpa_event_data event;
 	bool add_br = false;
 	int ret;
+
+	if (ifname_wds)
+		os_strlcpy(name, ifname_wds, IFNAMSIZ + 1);
 
 	wpa_printf(MSG_DEBUG, "nl80211: Set WDS STA addr=" MACSTR
 		   " aid=%d val=%d name=%s", MAC2STR(addr), aid, val, name);
@@ -11382,6 +11386,14 @@ static int nl80211_start_radar_detection(void *priv,
 		if (nla_put_u8(msg, NL80211_ATTR_MLO_LINK_ID, freq->link_id)) {
 			nlmsg_free(msg);
 			return -1;
+		}
+
+		if (freq->radar_background) {
+			struct i802_link *link = nl80211_get_link(bss, freq->link_id);
+
+			link->background_freq = freq->freq;
+		} else {
+			nl80211_link_set_freq(bss, freq->link_id, freq->freq);
 		}
 	}
 

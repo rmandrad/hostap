@@ -4488,23 +4488,6 @@ static void handle_auth(struct hostapd_data *hapd,
 	if (res == HOSTAPD_ACL_PENDING)
 		return;
 
-#ifdef CONFIG_IEEE80211BE
-	if (mld_sta) {
-		res = ieee802_11_allowed_address(hapd, mgmt->sa,
-						 (const u8 *) mgmt, len,
-						 &rad_info);
-		if (res == HOSTAPD_ACL_REJECT) {
-			wpa_msg(hapd->msg_ctx, MSG_DEBUG,
-				"Ignore Authentication frame from " MACSTR
-				" due to ACL reject", MAC2STR(mgmt->sa));
-			resp = WLAN_STATUS_UNSPECIFIED_FAILURE;
-			goto fail;
-		}
-		if (res == HOSTAPD_ACL_PENDING)
-			return;
-	}
-#endif /* CONFIG_IEEE80211BE */
-
 #ifdef CONFIG_SAE
 	if (auth_alg == WLAN_AUTH_SAE && !from_queue &&
 	    (auth_transaction == WLAN_AUTH_TR_SEQ_SAE_COMMIT ||
@@ -4823,22 +4806,15 @@ static u32 hostapd_get_aid_word(struct hostapd_data *hapd,
 
 	/* Do not assign an AID that is in use on any of the affiliated links
 	 * when finding an AID for a non-AP MLD. */
-	if (hapd->conf->mld_ap && sta->mld_info.mld_sta) {
+	if (hapd->conf->mld_ap) {
 		int j;
 
 		for (j = 0; j < MAX_NUM_MLD_LINKS; j++) {
 			struct hostapd_data *link_bss;
 
-			if (!sta->mld_info.links[j].valid)
-				continue;
-
 			link_bss = hostapd_mld_get_link_bss(hapd, j);
-			if (!link_bss) {
-				/* This shouldn't happen, just skip */
-				wpa_printf(MSG_ERROR,
-					   "MLD: Failed to get link BSS for AID");
+			if (!link_bss)
 				continue;
-			}
 
 			aid_word |= link_bss->sta_aid[i];
 		}
@@ -4883,7 +4859,10 @@ int hostapd_get_aid(struct hostapd_data *hapd, struct sta_info *sta)
 	}
 	if (j == 32)
 		return -1;
-	aid = i * 32 + j + (1 << hostapd_max_bssid_indicator(hapd));
+
+	/* Allocate aid starting from 65 */
+	/* Reserve 16 mbss + 3 * 16 mld affiliated links */
+	aid = i * 32 + j + 65;
 	if (aid > 2007)
 		return -1;
 
@@ -6227,10 +6206,12 @@ void ieee80211_ml_build_assoc_resp(struct hostapd_data *hapd,
 	p = hostapd_eid_ht_capabilities(hapd, p);
 	p = hostapd_eid_ht_operation(hapd, p);
 
+#ifdef CONFIG_IEEE80211AC
 	if (hostapd_is_vht_enabled(hapd)) {
 		p = hostapd_eid_vht_capabilities(hapd, p, 0);
 		p = hostapd_eid_vht_operation(hapd, p);
 	}
+#endif /* CONFIG_IEEE80211AC */
 
 	if (hostapd_is_he_enabled(hapd)) {
 		p = hostapd_eid_he_capab(hapd, p, IEEE80211_MODE_AP);
@@ -6581,6 +6562,7 @@ static int add_associated_sta(struct hostapd_data *hapd,
 	     (!reassoc && (sta->flags & WLAN_STA_AUTHORIZED)))) {
 		hostapd_drv_sta_remove(hapd, sta->addr);
 		wpa_auth_sm_event(sta->wpa_sm, WPA_DRV_STA_REMOVED);
+		ap_sta_set_authorized_flag(hapd, sta, 0);
 		set = 0;
 
 		 /* Do not allow the FT-over-DS exception to be used more than
@@ -6791,7 +6773,7 @@ static u16 send_assoc_resp(struct hostapd_data *hapd, struct sta_info *sta,
 #endif /* CONFIG_IEEE80211AC */
 
 #ifdef CONFIG_IEEE80211AX
-	if (hostapd_is_he_enabled(hapd)) {
+	if (hostapd_is_he_enabled(hapd) && sta && sta->flags & WLAN_STA_HE) {
 		p = hostapd_eid_he_capab(hapd, p, IEEE80211_MODE_AP);
 		p = hostapd_eid_he_operation(hapd, p);
 		p = hostapd_eid_cca(hapd, p);
@@ -7236,7 +7218,6 @@ static void handle_assoc(struct hostapd_data *hapd,
 #endif /* CONFIG_FILS */
 	int omit_rsnxe = 0;
 	bool set_beacon = false;
-	bool mld_addrs_not_translated = false;
 	bool sae_pk = false;
 
 	if (len < IEEE80211_HDRLEN + (reassoc ? sizeof(mgmt->u.reassoc_req) :
@@ -7313,7 +7294,6 @@ static void handle_assoc(struct hostapd_data *hapd,
 				wpa_printf(MSG_DEBUG,
 					   "MLD: Switching to assoc hapd/station");
 				hapd = assoc_hapd;
-				mld_addrs_not_translated = true;
 			}
 
 			/* Allow link address to be changed if an SA query
@@ -7324,7 +7304,6 @@ static void handle_assoc(struct hostapd_data *hapd,
 				os_memcpy(sta->mld_info.links[_link].peer_addr,
 					  mgmt->sa, ETH_ALEN);
 			}
-
 		}
 	}
 #endif /* CONFIG_IEEE80211BE */
@@ -7700,10 +7679,9 @@ static void handle_assoc(struct hostapd_data *hapd,
 
 	if (resp >= 0)
 		reply_res = send_assoc_resp(hapd,
-					    mld_addrs_not_translated ?
-					    NULL : sta,
-					    mgmt->sa, resp, reassoc,
-					    pos, left, rssi, omit_rsnxe);
+					    sta, sta ? sta->addr : mgmt->sa,
+					    resp, reassoc, pos, left, rssi,
+					    omit_rsnxe);
 
 	if (set_beacon)
 		ieee802_11_update_beacons(hapd->iface);
@@ -8239,6 +8217,13 @@ int ieee802_11_mgmt(struct hostapd_data *hapd, const u8 *buf, size_t len,
 
 	if (len < 24)
 		return 0;
+
+#ifdef CONFIG_IEEE80211BE
+	if (hapd->conf->mld_ap && !hapd->mld->started) {
+		wpa_printf(MSG_DEBUG, "MGMT: Drop the frame - MLD not ready");
+		return 1;
+	}
+#endif /* CONFIG_IEEE80211BE */
 
 	if (fi && fi->freq)
 		freq = fi->freq;
@@ -9514,6 +9499,12 @@ u8 * hostapd_eid_chsw_wrapper(struct hostapd_data *hapd, u8 *eid)
 #endif /* CONFIG_IEEE80211BE */
 
 	*eid_len_offset = (eid - eid_len_offset) - 1;
+	/* channel switch wrapper is empty, clear its tag */
+	if (!(*eid_len_offset)) {
+		eid -= 2;
+		*eid = 0;
+	}
+
 	return eid;
 }
 
@@ -10257,6 +10248,9 @@ static u8 * hostapd_eid_rnr_colocation(struct hostapd_data *hapd, u8 *eid,
 		if (!iface || iface == hapd->iface ||
 		    iface->state != HAPD_IFACE_ENABLED ||
 		    !is_6ghz_op_class(iface->conf->op_class))
+			continue;
+
+		if (!iface->bss[0]->started)
 			continue;
 
 		eid = hostapd_eid_rnr_iface(iface->bss[0], hapd, eid,
