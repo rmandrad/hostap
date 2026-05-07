@@ -78,7 +78,7 @@ struct wpa_ctrl {
 #ifdef CONFIG_CTRL_IFACE_UNIX
 
 #ifndef CONFIG_CTRL_IFACE_CLIENT_DIR
-#define CONFIG_CTRL_IFACE_CLIENT_DIR "/tmp"
+#define CONFIG_CTRL_IFACE_CLIENT_DIR "/var/run"
 #endif /* CONFIG_CTRL_IFACE_CLIENT_DIR */
 #ifndef CONFIG_CTRL_IFACE_CLIENT_PREFIX
 #define CONFIG_CTRL_IFACE_CLIENT_PREFIX "wpa_ctrl_"
@@ -518,7 +518,8 @@ int wpa_ctrl_request(struct wpa_ctrl *ctrl, const char *cmd, size_t cmd_len,
 	started_at.sec = 0;
 	started_at.usec = 0;
 retry_send:
-	if (send(ctrl->s, _cmd, _cmd_len, 0) < 0) {
+	if (sendto(ctrl->s, _cmd, _cmd_len, 0, (struct sockaddr *) &ctrl->dest,
+		   sizeof(ctrl->dest)) < 0) {
 		if (errno == EAGAIN || errno == EBUSY || errno == EWOULDBLOCK)
 		{
 			/*
@@ -531,7 +532,7 @@ retry_send:
 				struct os_reltime n;
 				os_get_reltime(&n);
 				/* Try for a few seconds. */
-				if (os_reltime_expired(&n, &started_at, 5))
+				if (os_reltime_expired(&n, &started_at, 15))
 					goto send_err;
 			}
 			os_sleep(1, 0);
@@ -544,7 +545,7 @@ retry_send:
 	os_free(cmd_buf);
 
 	os_get_reltime(&ending_at);
-	ending_at.sec += 10;
+	ending_at.sec += 30;
 
 	for (;;) {
 		struct os_reltime diff;

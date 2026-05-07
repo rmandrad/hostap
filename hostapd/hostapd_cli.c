@@ -36,7 +36,7 @@ static const char *client_socket_dir = NULL;
 static char *ctrl_ifname = NULL;
 static const char *pid_file = NULL;
 static const char *action_file = NULL;
-static int ping_interval = 5;
+static int ping_interval = 10;
 static int interactive = 0;
 static int event_handler_registered = 0;
 
