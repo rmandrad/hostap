@@ -1290,6 +1290,14 @@ struct hostapd_config {
 #define CH_SWITCH_EHT_ENABLED BIT(0)
 #define CH_SWITCH_EHT_DISABLED BIT(1)
 	unsigned int ch_switch_eht_config;
+	u8 edcca_enable;
+	s8 edcca_compensation;
+	int *edcca_threshold;
+	u8 mu_onoff;
+	u8 amsdu;
+	u8 lpi_enable;
+	u8 sku_idx;
+	u8 beacon_dup;
 
 	enum mbssid {
 		MBSSID_DISABLED = 0,
@@ -1310,6 +1318,24 @@ struct hostapd_config {
 	/* Disable MCS15 Subfield in EHT operation element */
 	bool disable_mcs15_rx;
 };
+
+enum edcca_mode {
+	EDCCA_MODE_FORCE_DISABLE = 0,
+	EDCCA_MODE_AUTO = 1,
+};
+
+enum edcca_bw_id {
+	EDCCA_BW_20 = 0,
+	EDCCA_BW_40,
+	EDCCA_BW_80,
+	EDCCA_MAX_BW_NUM,
+};
+
+#define EDCCA_DEFAULT_COMPENSATION -6
+#define EDCCA_MIN_COMPENSATION -126
+#define EDCCA_MAX_COMPENSATION 126
+#define EDCCA_MIN_CONFIG_THRES -126
+#define EDCCA_MAX_CONFIG_THRES 0
 
 
 static inline enum oper_chan_width

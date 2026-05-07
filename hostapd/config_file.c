@@ -3411,6 +3411,28 @@ static int hostapd_config_fill(struct hostapd_config *conf,
 
 		bss->rate_type = rate_type;
 		bss->beacon_rate = val;
+#ifdef CONFIG_IEEE80211AX
+	} else if (os_strcmp(buf, "mu_onoff") == 0) {
+		int val = atoi(pos);
+
+		if (val < 0 || val > 15) {
+			wpa_printf(MSG_ERROR,
+				   "Line %d: invalid mu_onoff value",
+				   line);
+			return 1;
+		}
+		conf->mu_onoff = val;
+#endif /* CONFIG_IEEE80211AX */
+	} else if (os_strcmp(buf, "amsdu") == 0) {
+		int val = atoi(pos);
+
+		if (val < 0 || val > 1) {
+			wpa_printf(MSG_ERROR,
+				   "Line %d: invalid amsdu value",
+				   line);
+			return 1;
+		}
+		conf->amsdu = val;
 	} else if (os_strcmp(buf, "preamble") == 0) {
 		if (atoi(pos))
 			conf->preamble = SHORT_PREAMBLE;
@@ -4966,6 +4988,50 @@ static int hostapd_config_fill(struct hostapd_config *conf,
 		conf->channel_usage = atoi(pos);
 	} else if (os_strcmp(buf, "peer_to_peer_twt") == 0) {
 		conf->peer_to_peer_twt = atoi(pos);
+	} else if (os_strcmp(buf, "edcca_threshold") == 0) {
+		if (hostapd_parse_intlist(&conf->edcca_threshold, pos) ||
+		    conf->edcca_threshold[0] < EDCCA_MIN_CONFIG_THRES ||
+		    conf->edcca_threshold[0] > EDCCA_MAX_CONFIG_THRES ||
+		    conf->edcca_threshold[1] < EDCCA_MIN_CONFIG_THRES ||
+		    conf->edcca_threshold[1] > EDCCA_MAX_CONFIG_THRES ||
+		    conf->edcca_threshold[2] < EDCCA_MIN_CONFIG_THRES ||
+		    conf->edcca_threshold[2] > EDCCA_MAX_CONFIG_THRES) {
+			wpa_printf(MSG_ERROR,
+				   "Line %d: invalid edcca threshold",
+				   line);
+			return 1;
+		}
+	} else if (os_strcmp(buf, "edcca_enable") == 0) {
+		int mode = atoi(pos);
+
+		if (mode < EDCCA_MODE_FORCE_DISABLE || mode > EDCCA_MODE_AUTO) {
+			wpa_printf(MSG_ERROR,
+				   "Line %d: Invalid edcca_enable %d",
+				   line, mode);
+			return 1;
+		}
+		conf->edcca_enable = mode;
+	} else if (os_strcmp(buf, "edcca_compensation") == 0) {
+		int val = atoi(pos);
+
+		if (val < EDCCA_MIN_COMPENSATION ||
+		    val > EDCCA_MAX_COMPENSATION) {
+			wpa_printf(MSG_ERROR,
+				   "Line %d: Invalid edcca_compensation %d",
+				   line, val);
+			return 1;
+		}
+		conf->edcca_compensation = val;
+	} else if (os_strcmp(buf, "lpi_enable") == 0) {
+		conf->lpi_enable = !!atoi(pos);
+	} else if (os_strcmp(buf, "sku_idx") == 0) {
+		int val = atoi(pos);
+
+		if (val < 0 || val > 255)
+			return 1;
+		conf->sku_idx = val;
+	} else if (os_strcmp(buf, "beacon_dup") == 0) {
+		conf->beacon_dup = !!atoi(pos);
 #ifdef CONFIG_IEEE80211BE
 	} else if (os_strcmp(buf, "ieee80211be") == 0) {
 		conf->ieee80211be = atoi(pos);

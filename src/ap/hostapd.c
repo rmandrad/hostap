@@ -2853,6 +2853,18 @@ dfs_offload:
 	}
 #endif /* CONFIG_FST */
 
+	if (hostapd_drv_configure_edcca_enable(hapd) < 0)
+		goto fail;
+	if (hostapd_drv_configure_edcca_threshold(
+		    hapd, hapd->iconf->edcca_threshold) < 0)
+		goto fail;
+	if (hostapd_drv_mu_ctrl(hapd) < 0)
+		goto fail;
+	if (hostapd_drv_amsdu_ctrl(hapd) < 0)
+		goto fail;
+	if (hostapd_drv_txpower_ctrl(hapd) < 0)
+		goto fail;
+
 	hostapd_set_state(iface, HAPD_IFACE_ENABLED);
 	hostapd_owe_update_trans(iface);
 	airtime_policy_update_init(iface);

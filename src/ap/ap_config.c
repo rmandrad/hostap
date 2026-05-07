@@ -301,6 +301,13 @@ struct hostapd_config * hostapd_config_defaults(void)
 	conf->reg_def_cli_eirp_psd = -1;
 	conf->reg_sub_cli_eirp_psd = -1;
 	conf->reg_def_cli_eirp = -1;
+	conf->edcca_enable = EDCCA_MODE_AUTO;
+	conf->edcca_compensation = EDCCA_DEFAULT_COMPENSATION;
+	conf->mu_onoff = 0xf;
+	conf->amsdu = 1;
+	conf->lpi_enable = 0;
+	conf->sku_idx = 0;
+	conf->beacon_dup = 1;
 #endif /* CONFIG_IEEE80211AX */
 
 	/* The third octet of the country string uses an ASCII space character
@@ -1050,6 +1057,7 @@ void hostapd_config_free(struct hostapd_config *conf)
 #ifdef CONFIG_ACS
 	os_free(conf->acs_chan_bias);
 #endif /* CONFIG_ACS */
+	os_free(conf->edcca_threshold);
 	wpabuf_free(conf->lci);
 	wpabuf_free(conf->civic);
 

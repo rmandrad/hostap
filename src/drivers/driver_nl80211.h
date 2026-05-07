@@ -212,6 +212,12 @@ struct wpa_driver_nl80211_data {
 	unsigned int brcm_do_acs:1;
 	unsigned int uses_6ghz:1;
 	unsigned int uses_s1g:1;
+	unsigned int mtk_edcca_vendor_cmd_avail:1;
+	unsigned int mtk_mu_vendor_cmd_avail:1;
+	unsigned int mtk_wireless_vendor_cmd_avail:1;
+	unsigned int mtk_amnt_vendor_cmd_avail:1;
+	unsigned int mtk_txpower_vendor_cmd_avail:1;
+	unsigned int mtk_beacon_ctrl_vendor_cmd_avail:1;
 	unsigned int secure_ranging_ctx_vendor_cmd_avail:1;
 	unsigned int puncturing:1;
 	unsigned int qca_ap_allowed_freqs:1;

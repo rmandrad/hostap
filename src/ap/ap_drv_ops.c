@@ -1439,3 +1439,112 @@ int hostapd_remove_pmkid(struct hostapd_data *hapd, const u8 *sta_addr,
 
 	return hostapd_drv_remove_pmkid(hapd, &params);
 }
+
+
+int hostapd_drv_configure_edcca_enable(struct hostapd_data *hapd)
+{
+	if (!hapd->driver || !hapd->driver->configure_edcca_enable)
+		return 0;
+
+	return hapd->driver->configure_edcca_enable(
+		hapd->drv_priv, hapd->iconf->edcca_enable,
+		hapd->iconf->edcca_compensation);
+}
+
+
+int hostapd_drv_configure_edcca_threshold(struct hostapd_data *hapd,
+					  const int *threshold)
+{
+	if (!hapd->driver || !hapd->driver->configure_edcca_threshold)
+		return 0;
+
+	return hapd->driver->configure_edcca_threshold(hapd->drv_priv,
+							 threshold);
+}
+
+
+int hostapd_drv_get_edcca(struct hostapd_data *hapd, const u8 mode, u8 *value)
+{
+	if (!hapd->driver || !hapd->driver->get_edcca)
+		return 0;
+
+	return hapd->driver->get_edcca(hapd->drv_priv, mode, value);
+}
+
+
+int hostapd_drv_mu_ctrl(struct hostapd_data *hapd)
+{
+	if (!hapd->driver || !hapd->driver->mu_ctrl)
+		return 0;
+
+	return hapd->driver->mu_ctrl(hapd->drv_priv, hapd->iconf->mu_onoff);
+}
+
+
+int hostapd_drv_mu_dump(struct hostapd_data *hapd, u8 *mu_onoff)
+{
+	if (!hapd->driver || !hapd->driver->mu_dump)
+		return 0;
+
+	return hapd->driver->mu_dump(hapd->drv_priv, mu_onoff);
+}
+
+
+int hostapd_drv_amsdu_ctrl(struct hostapd_data *hapd)
+{
+	if (!hapd->driver || !hapd->driver->amsdu_ctrl)
+		return 0;
+
+	return hapd->driver->amsdu_ctrl(hapd->drv_priv, hapd->iconf->amsdu);
+}
+
+
+int hostapd_drv_amsdu_dump(struct hostapd_data *hapd, u8 *amsdu)
+{
+	if (!hapd->driver || !hapd->driver->amsdu_dump)
+		return 0;
+
+	return hapd->driver->amsdu_dump(hapd->drv_priv, amsdu);
+}
+
+
+int hostapd_drv_amnt_set(struct hostapd_data *hapd, u8 amnt_idx,
+			 const u8 *amnt_sta_mac)
+{
+	if (!hapd->driver || !hapd->driver->amnt_set)
+		return 0;
+
+	return hapd->driver->amnt_set(hapd->drv_priv, amnt_idx,
+				      (u8 *) amnt_sta_mac);
+}
+
+
+int hostapd_drv_amnt_dump(struct hostapd_data *hapd, u8 amnt_idx,
+			  u8 *amnt_dump_buf)
+{
+	if (!hapd->driver || !hapd->driver->amnt_dump)
+		return 0;
+
+	return hapd->driver->amnt_dump(hapd->drv_priv, amnt_idx,
+				       amnt_dump_buf);
+}
+
+
+int hostapd_drv_txpower_ctrl(struct hostapd_data *hapd)
+{
+	if (!hapd->driver || !hapd->driver->txpower_ctrl)
+		return 0;
+
+	return hapd->driver->txpower_ctrl(
+		hapd->drv_priv, hapd->iconf->lpi_enable,
+		hapd->iconf->sku_idx, hapd->iconf->beacon_dup);
+}
+
+
+int hostapd_drv_beacon_ctrl(struct hostapd_data *hapd, u8 beacon_mode)
+{
+	if (!hapd->driver || !hapd->driver->beacon_ctrl)
+		return 0;
+
+	return hapd->driver->beacon_ctrl(hapd->drv_priv, beacon_mode);
+}

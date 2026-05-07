@@ -4782,6 +4782,19 @@ struct wpa_driver_ops {
 	 * @triggers: wowlan triggers
 	 */
 	int (*set_wowlan)(void *priv, const struct wowlan_triggers *triggers);
+	int (*configure_edcca_enable)(void *priv, u8 edcca_enable,
+				      s8 edcca_compensation);
+	int (*configure_edcca_threshold)(void *priv, const int *threshold);
+	int (*get_edcca)(void *priv, u8 mode, u8 *value);
+	int (*mu_ctrl)(void *priv, u8 mu_onoff);
+	int (*mu_dump)(void *priv, u8 *mu_onoff);
+	int (*amsdu_ctrl)(void *priv, u8 amsdu);
+	int (*amsdu_dump)(void *priv, u8 *amsdu);
+	int (*amnt_set)(void *priv, u8 amnt_idx, u8 *amnt_sta_mac);
+	int (*amnt_dump)(void *priv, u8 amnt_idx, u8 *amnt_dump_buf);
+	int (*txpower_ctrl)(void *priv, u8 lpi_enable, u8 sku_idx,
+			    u8 beacon_dup);
+	int (*beacon_ctrl)(void *priv, u8 beacon_mode);
 
 	/**
 	 * signal_poll - Get current connection information

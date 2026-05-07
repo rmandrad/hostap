@@ -149,6 +149,21 @@ int hostapd_drv_do_acs(struct hostapd_data *hapd);
 int hostapd_drv_update_dh_ie(struct hostapd_data *hapd, const u8 *peer,
 			     u16 reason_code, const u8 *ie, size_t ielen);
 int hostapd_drv_dpp_listen(struct hostapd_data *hapd, bool enable);
+int hostapd_drv_configure_edcca_enable(struct hostapd_data *hapd);
+int hostapd_drv_configure_edcca_threshold(struct hostapd_data *hapd,
+					  const int *threshold);
+int hostapd_drv_get_edcca(struct hostapd_data *hapd, const u8 mode,
+			  u8 *value);
+int hostapd_drv_mu_ctrl(struct hostapd_data *hapd);
+int hostapd_drv_mu_dump(struct hostapd_data *hapd, u8 *mu_onoff);
+int hostapd_drv_amsdu_ctrl(struct hostapd_data *hapd);
+int hostapd_drv_amsdu_dump(struct hostapd_data *hapd, u8 *amsdu);
+int hostapd_drv_amnt_set(struct hostapd_data *hapd, u8 amnt_idx,
+			 const u8 *amnt_sta_mac);
+int hostapd_drv_amnt_dump(struct hostapd_data *hapd, u8 amnt_idx,
+			  u8 *amnt_dump_buf);
+int hostapd_drv_txpower_ctrl(struct hostapd_data *hapd);
+int hostapd_drv_beacon_ctrl(struct hostapd_data *hapd, u8 beacon_mode);
 int hostapd_drv_set_secure_ranging_ctx(struct hostapd_data *hapd,
 				       const u8 *own_addr, const u8 *addr,
 				       u32 cipher, u8 key_len, const u8 *key,

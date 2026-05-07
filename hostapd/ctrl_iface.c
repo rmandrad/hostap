@@ -34,6 +34,7 @@
 #include "common/version.h"
 #include "common/ieee802_11_defs.h"
 #include "common/ctrl_iface_common.h"
+#include "common/mtk_vendor.h"
 #ifdef CONFIG_DPP
 #include "common/dpp.h"
 #endif /* CONFIG_DPP */
@@ -3488,6 +3489,257 @@ static int hostapd_ctrl_iface_driver_cmd(struct hostapd_data *hapd, char *cmd,
 }
 #endif /* ANDROID */
 
+static const char * edcca_mode_str(enum edcca_mode mode)
+{
+	switch (mode) {
+	case EDCCA_MODE_FORCE_DISABLE:
+		return "Force Disable";
+	case EDCCA_MODE_AUTO:
+		return "Auto";
+	default:
+		return "Unknown";
+	}
+}
+
+
+static int hostapd_ctrl_iface_set_edcca(struct hostapd_data *hapd, char *cmd,
+					char *buf, size_t buflen)
+{
+	char *pos, *config, *value;
+
+	config = cmd;
+	pos = os_strchr(config, ' ');
+	if (!pos)
+		return -1;
+	*pos++ = '\0';
+	value = pos;
+
+	if (os_strcmp(config, "enable") == 0) {
+		int mode = atoi(value);
+
+		if (mode < EDCCA_MODE_FORCE_DISABLE || mode > EDCCA_MODE_AUTO)
+			return -1;
+		hapd->iconf->edcca_enable = mode;
+		if (hostapd_drv_configure_edcca_enable(hapd) != 0)
+			return -1;
+	} else if (os_strcmp(config, "compensation") == 0) {
+		int compensation = atoi(value);
+
+		if (compensation < EDCCA_MIN_COMPENSATION ||
+		    compensation > EDCCA_MAX_COMPENSATION)
+			return -1;
+		hapd->iconf->edcca_compensation = compensation;
+		if (hostapd_drv_configure_edcca_enable(hapd) != 0)
+			return -1;
+	} else if (os_strcmp(config, "threshold") == 0) {
+		char *thres_value = os_strchr(value, ':');
+		int bw_idx;
+		int threshold;
+		int threshold_arr[EDCCA_MAX_BW_NUM];
+
+		if (!thres_value)
+			return -1;
+		*thres_value++ = '\0';
+		bw_idx = atoi(value);
+		threshold = atoi(thres_value);
+		if (bw_idx < EDCCA_BW_20 || bw_idx > EDCCA_BW_80)
+			return -1;
+		if (threshold < EDCCA_MIN_CONFIG_THRES ||
+		    threshold > EDCCA_MAX_CONFIG_THRES)
+			return -1;
+
+		os_memset(threshold_arr, 0x7f, sizeof(threshold_arr));
+		threshold_arr[bw_idx] = threshold;
+		if (hostapd_drv_configure_edcca_threshold(hapd,
+							  threshold_arr) != 0)
+			return -1;
+	} else {
+		return -1;
+	}
+
+	return os_snprintf(buf, buflen, "OK\n");
+}
+
+
+static int hostapd_ctrl_iface_get_edcca(struct hostapd_data *hapd, char *cmd,
+					char *buf, size_t buflen)
+{
+	u8 value[EDCCA_MAX_BW_NUM] = { 0 };
+
+	if (os_strcmp(cmd, "enable") == 0) {
+		return os_snprintf(buf, buflen, "Enable: %s\n",
+				   edcca_mode_str(hapd->iconf->edcca_enable));
+	}
+
+	if (os_strcmp(cmd, "compensation") == 0) {
+		return os_snprintf(buf, buflen, "Compensation: %d\n",
+				   hapd->iconf->edcca_compensation);
+	}
+
+	if (os_strcmp(cmd, "threshold") == 0) {
+		if (hostapd_drv_get_edcca(hapd, EDCCA_CTRL_GET_THRES, value) != 0)
+			return -1;
+		return os_snprintf(buf, buflen,
+				   "Threshold BW20: 0x%x, BW40: 0x%x, BW80: 0x%x\n",
+				   value[0], value[1], value[2]);
+	}
+
+	return -1;
+}
+
+
+static int hostapd_ctrl_iface_set_mu(struct hostapd_data *hapd, char *cmd,
+				     char *buf, size_t buflen)
+{
+	int mu;
+
+	mu = atoi(cmd);
+	if (mu < 0 || mu > 15)
+		return -1;
+
+	hapd->iconf->mu_onoff = mu;
+	if (hostapd_drv_mu_ctrl(hapd) != 0)
+		return -1;
+
+	return os_snprintf(buf, buflen, "OK\n");
+}
+
+
+static int hostapd_ctrl_iface_get_mu(struct hostapd_data *hapd, char *buf,
+				     size_t buflen)
+{
+	u8 mu_onoff;
+
+	if (hapd->iface->state != HAPD_IFACE_ENABLED)
+		return os_snprintf(buf, buflen,
+				   "Not allowed to get_mu when current state is %s\n",
+				   hostapd_state_text(hapd->iface->state));
+
+	if (hostapd_drv_mu_dump(hapd, &mu_onoff) != 0)
+		return -1;
+
+	hapd->iconf->mu_onoff = mu_onoff;
+	return os_snprintf(
+		buf, buflen,
+		"[hostapd_cli] = UL MU-MIMO: %d, DL MU-MIMO: %d, UL OFDMA: %d, DL OFDMA: %d\n",
+		!!(mu_onoff & BIT(3)), !!(mu_onoff & BIT(2)),
+		!!(mu_onoff & BIT(1)), !!(mu_onoff & BIT(0)));
+}
+
+
+static int hostapd_ctrl_iface_get_amsdu(struct hostapd_data *hapd, char *buf,
+					size_t buflen)
+{
+	u8 amsdu;
+
+	if (hostapd_drv_amsdu_dump(hapd, &amsdu) != 0)
+		return -1;
+
+	hapd->iconf->amsdu = amsdu;
+	return os_snprintf(buf, buflen, "[hostapd_cli] AMSDU: %u\n",
+			   hapd->iconf->amsdu);
+}
+
+
+static int hostapd_ctrl_iface_set_amnt(struct hostapd_data *hapd, char *cmd,
+				       char *buf, size_t buflen)
+{
+	char *idxstr;
+	char *macstr;
+	char *end;
+	long idx;
+	u8 sta_mac[ETH_ALEN];
+
+	idxstr = strtok_r(cmd, " ", &cmd);
+	if (!idxstr || !cmd)
+		return -1;
+
+	errno = 0;
+	idx = strtol(idxstr, &end, 10);
+	if (errno || *end != '\0' || idx < 0 || idx > 15)
+		return -1;
+
+	macstr = cmd;
+	if (hwaddr_aton(macstr, sta_mac) < 0)
+		return -1;
+
+	if (hostapd_drv_amnt_set(hapd, idx, sta_mac) != 0)
+		return -1;
+
+	return os_snprintf(buf, buflen, "OK\n");
+}
+
+
+static int hostapd_ctrl_iface_dump_amnt(struct hostapd_data *hapd, char *cmd,
+					char *buf, size_t buflen)
+{
+	struct amnt_resp_data *resp_buf;
+	struct amnt_data *res;
+	char *endp;
+	char *pos = buf;
+	char *end = buf + buflen;
+	size_t max_entries;
+	long idx;
+	int i;
+	int ret;
+
+	errno = 0;
+	idx = strtol(cmd, &endp, 0);
+	if (errno || (*endp != '\0' && *endp != ' ') ||
+	    ((idx < 0 || idx > 15) && idx != 0xff))
+		return -1;
+
+	max_entries = idx == 0xff ? AIR_MONITOR_MAX_ENTRY : 1;
+	resp_buf = os_zalloc(sizeof(*resp_buf) +
+			     max_entries * sizeof(struct amnt_data));
+	if (!resp_buf)
+		return -1;
+
+	if (hostapd_drv_amnt_dump(hapd, idx, (u8 *) resp_buf) != 0) {
+		os_free(resp_buf);
+		return -1;
+	}
+
+	for (i = 0; i < resp_buf->sta_num && i < (int) max_entries; i++) {
+		res = &resp_buf->resp_data[i];
+		ret = os_snprintf(pos, end - pos,
+				  "[hostapd_cli] amnt_idx: %u, addr=" MACSTR
+				  ", rssi=%d/%d/%d/%d, last_seen=%u\n",
+				  res->idx, MAC2STR(res->addr), res->rssi[0],
+				  res->rssi[1], res->rssi[2], res->rssi[3],
+				  res->last_seen);
+		if (os_snprintf_error(end - pos, ret)) {
+			os_free(resp_buf);
+			return 0;
+		}
+		pos += ret;
+	}
+
+	os_free(resp_buf);
+
+	if (pos == buf)
+		return os_snprintf(buf, buflen, "Index %ld is not monitored\n",
+				   idx);
+
+	return pos - buf;
+}
+
+
+static int hostapd_ctrl_iface_disable_beacon(struct hostapd_data *hapd,
+					     char *value, char *buf,
+					     size_t buflen)
+{
+	int disable_beacon = atoi(value);
+
+	if (disable_beacon < 0)
+		return -1;
+
+	if (hostapd_drv_beacon_ctrl(hapd, !disable_beacon) != 0)
+		return -1;
+
+	return os_snprintf(buf, buflen, "OK\n");
+}
+
 
 #ifdef CONFIG_IEEE80211BE
 
@@ -4327,6 +4579,30 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
 	} else if (os_strcmp(buf, "DRIVER_FLAGS2") == 0) {
 		reply_len = hostapd_ctrl_driver_flags2(hapd->iface, reply,
 						       reply_size);
+	} else if (os_strncmp(buf, "SET_EDCCA ", 10) == 0) {
+		reply_len = hostapd_ctrl_iface_set_edcca(hapd, buf + 10,
+							 reply, reply_size);
+	} else if (os_strncmp(buf, "GET_EDCCA ", 10) == 0) {
+		reply_len = hostapd_ctrl_iface_get_edcca(hapd, buf + 10,
+							 reply, reply_size);
+	} else if (os_strncmp(buf, "SET_MU ", 7) == 0) {
+		reply_len = hostapd_ctrl_iface_set_mu(hapd, buf + 7, reply,
+						      reply_size);
+	} else if (os_strncmp(buf, "GET_MU", 6) == 0) {
+		reply_len = hostapd_ctrl_iface_get_mu(hapd, reply, reply_size);
+	} else if (os_strcmp(buf, "GET_AMSDU") == 0) {
+		reply_len = hostapd_ctrl_iface_get_amsdu(hapd, reply,
+							 reply_size);
+	} else if (os_strncmp(buf, "SET_AMNT ", 9) == 0) {
+		reply_len = hostapd_ctrl_iface_set_amnt(hapd, buf + 9, reply,
+							reply_size);
+	} else if (os_strncmp(buf, "DUMP_AMNT ", 10) == 0) {
+		reply_len = hostapd_ctrl_iface_dump_amnt(hapd, buf + 10,
+							 reply, reply_size);
+	} else if (os_strncmp(buf, "NO_BEACON ", 10) == 0) {
+		reply_len = hostapd_ctrl_iface_disable_beacon(hapd, buf + 10,
+							      reply,
+							      reply_size);
 	} else if (os_strcmp(buf, "TERMINATE") == 0) {
 		eloop_terminate();
 	} else if (os_strncmp(buf, "ACCEPT_ACL ", 11) == 0) {

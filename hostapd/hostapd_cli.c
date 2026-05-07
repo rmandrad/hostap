@@ -1464,6 +1464,70 @@ static int hostapd_cli_cmd_driver_flags2(struct wpa_ctrl *ctrl, int argc,
 }
 
 
+static int hostapd_cli_cmd_set_edcca(struct wpa_ctrl *ctrl, int argc,
+				     char *argv[])
+{
+	return hostapd_cli_cmd(ctrl, "SET_EDCCA", 2, argc, argv);
+}
+
+
+static int hostapd_cli_cmd_get_edcca(struct wpa_ctrl *ctrl, int argc,
+				     char *argv[])
+{
+	return hostapd_cli_cmd(ctrl, "GET_EDCCA", 1, argc, argv);
+}
+
+
+static int hostapd_cli_cmd_set_mu(struct wpa_ctrl *ctrl, int argc,
+				  char *argv[])
+{
+	return hostapd_cli_cmd(ctrl, "SET_MU", 1, argc, argv);
+}
+
+
+static int hostapd_cli_cmd_get_mu(struct wpa_ctrl *ctrl, int argc,
+				  char *argv[])
+{
+	return wpa_ctrl_command(ctrl, "GET_MU");
+}
+
+#ifdef CONFIG_TESTING_OPTIONS
+static int hostapd_cli_cmd_rekey_gtk(struct wpa_ctrl *ctrl, int argc,
+				     char *argv[])
+{
+	return wpa_ctrl_command(ctrl, "REKEY_GTK");
+}
+#endif /* CONFIG_TESTING_OPTIONS */
+
+
+static int hostapd_cli_cmd_get_amsdu(struct wpa_ctrl *ctrl, int argc,
+				     char *argv[])
+{
+	return wpa_ctrl_command(ctrl, "GET_AMSDU");
+}
+
+
+static int hostapd_cli_cmd_set_amnt(struct wpa_ctrl *ctrl, int argc,
+				    char *argv[])
+{
+	return hostapd_cli_cmd(ctrl, "SET_AMNT", 2, argc, argv);
+}
+
+
+static int hostapd_cli_cmd_dump_amnt(struct wpa_ctrl *ctrl, int argc,
+				     char *argv[])
+{
+	return hostapd_cli_cmd(ctrl, "DUMP_AMNT", 1, argc, argv);
+}
+
+
+static int hostapd_cli_cmd_disable_beacon(struct wpa_ctrl *ctrl, int argc,
+					  char *argv[])
+{
+	return hostapd_cli_cmd(ctrl, "NO_BEACON", 1, argc, argv);
+}
+
+
 #ifdef CONFIG_DPP
 
 static int hostapd_cli_cmd_dpp_qr_code(struct wpa_ctrl *ctrl, int argc,
@@ -1822,6 +1886,10 @@ static const struct hostapd_cli_cmd hostapd_cli_commands[] = {
 	  "= stop AP\n"},
 	{ "erp_flush", hostapd_cli_cmd_erp_flush, NULL,
 	  "= drop all ERP keys"},
+#ifdef CONFIG_TESTING_OPTIONS
+	{ "rekey_gtk", hostapd_cli_cmd_rekey_gtk, NULL,
+	  " = rekey GTK" },
+#endif /* CONFIG_TESTING_OPTIONS */
 	{ "log_level", hostapd_cli_cmd_log_level, NULL,
 	  "[level] = show/change log verbosity level" },
 	{ "pmksa", hostapd_cli_cmd_pmksa, NULL,
@@ -1843,6 +1911,22 @@ static const struct hostapd_cli_cmd hostapd_cli_commands[] = {
 	  " = show supported driver flags"},
 	{ "driver_flags2", hostapd_cli_cmd_driver_flags2, NULL,
 	  " = show supported driver flags2"},
+	{ "set_edcca", hostapd_cli_cmd_set_edcca, NULL,
+	  "<enable|compensation|threshold> <value> = set EDCCA control"},
+	{ "get_edcca", hostapd_cli_cmd_get_edcca, NULL,
+	  "<enable|compensation|threshold> = show EDCCA state"},
+	{ "set_mu", hostapd_cli_cmd_set_mu, NULL,
+	  "<value> [0-15] bitmap- UL MU-MIMO(bit3), DL MU-MIMO(bit2), UL OFDMA(bit1), DL OFDMA(bit0)"},
+	{ "get_mu", hostapd_cli_cmd_get_mu, NULL,
+	  " = show MU onoff value in 0-15 bitmap"},
+	{ "get_amsdu", hostapd_cli_cmd_get_amsdu, NULL,
+	  " = show AMSDU state"},
+	{ "set_amnt", hostapd_cli_cmd_set_amnt, NULL,
+	  "<index> <addr> = set station monitor entry"},
+	{ "dump_amnt", hostapd_cli_cmd_dump_amnt, NULL,
+	  "<index|0xff> = dump air monitor entries"},
+	{ "no_beacon", hostapd_cli_cmd_disable_beacon, NULL,
+	  "<value> 0: Enable beacon, 1: Disable beacon"},
 #ifdef CONFIG_DPP
 	{ "dpp_qr_code", hostapd_cli_cmd_dpp_qr_code, NULL,
 	  "report a scanned DPP URI from a QR Code" },

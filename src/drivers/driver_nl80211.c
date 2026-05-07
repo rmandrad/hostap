@@ -27,6 +27,7 @@
 #include "common/qca-vendor.h"
 #include "common/qca-vendor-attr.h"
 #include "common/brcm_vendor.h"
+#include "common/mtk_vendor.h"
 #include "common/ieee802_11_defs.h"
 #include "common/ieee802_11_common.h"
 #include "common/wpa_common.h"
@@ -15626,6 +15627,521 @@ static int testing_nl80211_radio_disable(void *priv, int disabled)
 
 #endif /* CONFIG_TESTING_OPTIONS */
 
+static int nl80211_configure_edcca_enable(void *priv, u8 edcca_enable,
+					  s8 edcca_compensation)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+	int ret;
+
+	if (!drv->mtk_edcca_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support setting EDCCA enable");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_EDCCA_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_EDCCA_CTRL_MODE,
+		       EDCCA_CTRL_SET_EN) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_EDCCA_CTRL_PRI20_VAL,
+		       edcca_enable) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_EDCCA_CTRL_COMPENSATE,
+		       (u8) edcca_compensation)) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, data);
+	ret = send_and_recv(drv, bss->nl_connect, msg, NULL, NULL, NULL,
+			    NULL, NULL);
+	if (ret) {
+		wpa_printf(MSG_ERROR,
+			   "Failed to configure EDCCA enable: ret=%d (%s)",
+			   ret, strerror(-ret));
+	}
+
+	return ret;
+}
+
+
+static int nl80211_configure_edcca_threshold(void *priv, const int *threshold)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+	int ret;
+
+	if (!drv->mtk_edcca_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support setting EDCCA threshold");
+		return 0;
+	}
+
+	if (!threshold)
+		return 0;
+
+	if (!(msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_EDCCA_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_EDCCA_CTRL_MODE,
+		       EDCCA_CTRL_SET_THRES) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_EDCCA_CTRL_PRI20_VAL,
+		       threshold[0] & 0xff) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_EDCCA_CTRL_SEC40_VAL,
+		       threshold[1] & 0xff) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_EDCCA_CTRL_SEC80_VAL,
+		       threshold[2] & 0xff)) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, data);
+	ret = send_and_recv(drv, bss->nl_connect, msg, NULL, NULL, NULL,
+			    NULL, NULL);
+	if (ret) {
+		wpa_printf(MSG_ERROR,
+			   "Failed to configure EDCCA threshold: ret=%d (%s)",
+			   ret, strerror(-ret));
+	}
+
+	return ret;
+}
+
+
+static int edcca_info_handler(struct nl_msg *msg, void *arg)
+{
+	u8 *info = arg;
+	struct nlattr *tb[NL80211_ATTR_MAX + 1];
+	struct nlattr *tb_vendor[NUM_MTK_VENDOR_ATTRS_EDCCA_DUMP];
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *nl_vend;
+
+	nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+		  genlmsg_attrlen(gnlh, 0), NULL);
+
+	nl_vend = tb[NL80211_ATTR_VENDOR_DATA];
+	if (!nl_vend)
+		return NL_SKIP;
+
+	nla_parse(tb_vendor, MTK_VENDOR_ATTR_EDCCA_DUMP_MAX, nla_data(nl_vend),
+		  nla_len(nl_vend), NULL);
+
+	if (!tb_vendor[MTK_VENDOR_ATTR_EDCCA_DUMP_PRI20_VAL] ||
+	    !tb_vendor[MTK_VENDOR_ATTR_EDCCA_DUMP_SEC40_VAL] ||
+	    !tb_vendor[MTK_VENDOR_ATTR_EDCCA_DUMP_SEC80_VAL])
+		return NL_SKIP;
+
+	*info++ = nla_get_u8(tb_vendor[MTK_VENDOR_ATTR_EDCCA_DUMP_PRI20_VAL]);
+	*info++ = nla_get_u8(tb_vendor[MTK_VENDOR_ATTR_EDCCA_DUMP_SEC40_VAL]);
+	*info = nla_get_u8(tb_vendor[MTK_VENDOR_ATTR_EDCCA_DUMP_SEC80_VAL]);
+
+	return NL_OK;
+}
+
+
+static int nl80211_get_edcca(void *priv, u8 mode, u8 *value)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+
+	if (!drv->mtk_edcca_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support EDCCA dump");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, NLM_F_DUMP, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_EDCCA_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_EDCCA_CTRL_MODE, mode)) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, data);
+	return send_and_recv_resp(drv, msg, edcca_info_handler, value);
+}
+
+
+static int nl80211_mu_onoff(void *priv, u8 mu_onoff)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+	int ret;
+
+	if (!drv->mtk_mu_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support setting mu control");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_MU_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_MU_CTRL_ONOFF, mu_onoff)) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, data);
+	ret = send_and_recv(drv, bss->nl_connect, msg, NULL, NULL, NULL,
+			    NULL, NULL);
+	if (ret)
+		wpa_printf(MSG_ERROR, "Failed to set mu_onoff: ret=%d (%s)",
+			   ret, strerror(-ret));
+
+	return ret;
+}
+
+
+static int mu_dump_handler(struct nl_msg *msg, void *arg)
+{
+	u8 *mu_onoff = arg;
+	struct nlattr *tb[NL80211_ATTR_MAX + 1];
+	struct nlattr *tb_vendor[NUM_MTK_VENDOR_ATTRS_MU_CTRL];
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *nl_vend;
+
+	nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+		  genlmsg_attrlen(gnlh, 0), NULL);
+
+	nl_vend = tb[NL80211_ATTR_VENDOR_DATA];
+	if (!nl_vend)
+		return NL_SKIP;
+
+	nla_parse(tb_vendor, MTK_VENDOR_ATTR_MU_CTRL_MAX, nla_data(nl_vend),
+		  nla_len(nl_vend), mu_ctrl_policy);
+
+	if (!tb_vendor[MTK_VENDOR_ATTR_MU_CTRL_DUMP])
+		return NL_SKIP;
+
+	*mu_onoff = nla_get_u8(tb_vendor[MTK_VENDOR_ATTR_MU_CTRL_DUMP]);
+	return NL_OK;
+}
+
+
+static int nl80211_mu_dump(void *priv, u8 *mu_onoff)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+
+	if (!drv->mtk_mu_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support MU dump");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, NLM_F_DUMP, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_MU_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA))) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, data);
+	return send_and_recv_resp(drv, msg, mu_dump_handler, mu_onoff);
+}
+
+
+static int nl80211_amsdu_ctrl(void *priv, u8 amsdu)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+	int ret;
+
+	if (!drv->mtk_wireless_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support AMSDU control");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_WIRELESS_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_WIRELESS_CTRL_AMSDU, amsdu)) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, data);
+	ret = send_and_recv(drv, bss->nl_connect, msg, NULL, NULL, NULL,
+			    NULL, NULL);
+	if (ret)
+		wpa_printf(MSG_ERROR,
+			   "Failed to set AMSDU state: ret=%d (%s)",
+			   ret, strerror(-ret));
+
+	return ret;
+}
+
+
+static int amsdu_dump_handler(struct nl_msg *msg, void *arg)
+{
+	u8 *amsdu = arg;
+	struct nlattr *tb[NL80211_ATTR_MAX + 1];
+	struct nlattr *tb_vendor[NUM_MTK_VENDOR_ATTRS_WIRELESS_DUMP];
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *nl_vend;
+
+	nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+		  genlmsg_attrlen(gnlh, 0), NULL);
+
+	nl_vend = tb[NL80211_ATTR_VENDOR_DATA];
+	if (!nl_vend)
+		return NL_SKIP;
+
+	nla_parse(tb_vendor, MTK_VENDOR_ATTR_WIRELESS_DUMP_MAX,
+		  nla_data(nl_vend), nla_len(nl_vend), wireless_dump_policy);
+
+	if (!tb_vendor[MTK_VENDOR_ATTR_WIRELESS_DUMP_AMSDU])
+		return NL_SKIP;
+
+	*amsdu = nla_get_u8(tb_vendor[MTK_VENDOR_ATTR_WIRELESS_DUMP_AMSDU]);
+	return NL_OK;
+}
+
+
+static int nl80211_amsdu_dump(void *priv, u8 *amsdu)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+
+	if (!drv->mtk_wireless_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support AMSDU dump");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, NLM_F_DUMP, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_WIRELESS_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA))) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, data);
+	return send_and_recv_resp(drv, msg, amsdu_dump_handler, amsdu);
+}
+
+
+static int nl80211_amnt_set(void *priv, u8 amnt_idx, u8 *amnt_sta_mac)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+	struct nlattr *nested;
+	int ret;
+
+	if (!drv->mtk_amnt_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support air monitor");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_AMNT_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+	    !(nested = nla_nest_start(msg, MTK_VENDOR_ATTR_AMNT_CTRL_SET)) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_AMNT_SET_INDEX, amnt_idx) ||
+	    nla_put(msg, MTK_VENDOR_ATTR_AMNT_SET_MACADDR, ETH_ALEN,
+		    amnt_sta_mac)) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, nested);
+	nla_nest_end(msg, data);
+	ret = send_and_recv(drv, bss->nl_connect, msg, NULL, NULL, NULL,
+			    NULL, NULL);
+	if (ret)
+		wpa_printf(MSG_ERROR,
+			   "Failed to set air monitor entry: ret=%d (%s)",
+			   ret, strerror(-ret));
+
+	return ret;
+}
+
+
+static int amnt_dump_handler(struct nl_msg *msg, void *arg)
+{
+	struct amnt_resp_data *resp = arg;
+	struct nlattr *tb[NL80211_ATTR_MAX + 1];
+	struct nlattr *tb1[NUM_MTK_VENDOR_ATTRS_AMNT_CTRL];
+	struct nlattr *tb2[NUM_MTK_VENDOR_ATTRS_AMNT_DUMP];
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *nl_vend;
+	struct nlattr *data;
+	int len;
+
+	nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+		  genlmsg_attrlen(gnlh, 0), NULL);
+
+	nl_vend = tb[NL80211_ATTR_VENDOR_DATA];
+	if (!nl_vend)
+		return NL_SKIP;
+
+	nla_parse(tb1, MTK_VENDOR_ATTR_AMNT_CTRL_MAX, nla_data(nl_vend),
+		  nla_len(nl_vend), amnt_ctrl_policy);
+	if (!tb1[MTK_VENDOR_ATTR_AMNT_CTRL_DUMP])
+		return NL_SKIP;
+
+	nla_parse_nested(tb2, MTK_VENDOR_ATTR_AMNT_DUMP_MAX,
+			 tb1[MTK_VENDOR_ATTR_AMNT_CTRL_DUMP],
+			 amnt_dump_policy);
+	if (!tb2[MTK_VENDOR_ATTR_AMNT_DUMP_LEN] ||
+	    !tb2[MTK_VENDOR_ATTR_AMNT_DUMP_RESULT])
+		return NL_SKIP;
+
+	len = nla_get_u8(tb2[MTK_VENDOR_ATTR_AMNT_DUMP_LEN]);
+	resp->sta_num = len / sizeof(struct amnt_data);
+	data = tb2[MTK_VENDOR_ATTR_AMNT_DUMP_RESULT];
+	os_memcpy(resp->resp_data, nla_data(data),
+		  len > AIR_MONITOR_MAX_ENTRY * (int) sizeof(struct amnt_data) ?
+		  AIR_MONITOR_MAX_ENTRY * sizeof(struct amnt_data) : len);
+
+	return NL_OK;
+}
+
+
+static int nl80211_amnt_dump(void *priv, u8 amnt_idx, u8 *amnt_dump_buf)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+	struct nlattr *nested;
+
+	if (!drv->mtk_amnt_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support air monitor dump");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, NLM_F_DUMP, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_AMNT_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+	    !(nested = nla_nest_start(msg, MTK_VENDOR_ATTR_AMNT_CTRL_DUMP)) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_AMNT_DUMP_INDEX, amnt_idx)) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, nested);
+	nla_nest_end(msg, data);
+	return send_and_recv_resp(drv, msg, amnt_dump_handler, amnt_dump_buf);
+}
+
+
+static int nl80211_txpower_ctrl(void *priv, u8 lpi_enable, u8 sku_idx,
+				u8 beacon_dup)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+	int ret;
+
+	if (!drv->mtk_txpower_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support txpower control");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_TXPOWER_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_TXPOWER_CTRL_LPI_ENABLE,
+		       lpi_enable) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_TXPOWER_CTRL_SKU_IDX, sku_idx) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_TXPOWER_CTRL_BCN_DUP,
+		       beacon_dup)) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, data);
+	ret = send_and_recv(drv, bss->nl_connect, msg, NULL, NULL, NULL,
+			    NULL, NULL);
+	if (ret)
+		wpa_printf(MSG_ERROR,
+			   "Failed to configure txpower control: ret=%d (%s)",
+			   ret, strerror(-ret));
+
+	return ret;
+}
+
+
+static int nl80211_beacon_ctrl(void *priv, u8 beacon_mode)
+{
+	struct i802_bss *bss = priv;
+	struct wpa_driver_nl80211_data *drv = bss->drv;
+	struct nl_msg *msg;
+	struct nlattr *data;
+	int ret;
+
+	if (!drv->mtk_beacon_ctrl_vendor_cmd_avail) {
+		wpa_printf(MSG_INFO,
+			   "nl80211: Driver does not support beacon control");
+		return 0;
+	}
+
+	if (!(msg = nl80211_drv_msg(drv, 0, NL80211_CMD_VENDOR)) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_ID, OUI_MTK) ||
+	    nla_put_u32(msg, NL80211_ATTR_VENDOR_SUBCMD,
+			MTK_NL80211_VENDOR_SUBCMD_BEACON_CTRL) ||
+	    !(data = nla_nest_start(msg, NL80211_ATTR_VENDOR_DATA)) ||
+	    nla_put_u8(msg, MTK_VENDOR_ATTR_BEACON_CTRL_MODE, beacon_mode)) {
+		nlmsg_free(msg);
+		return -ENOBUFS;
+	}
+
+	nla_nest_end(msg, data);
+	ret = send_and_recv(drv, bss->nl_connect, msg, NULL, NULL, NULL,
+			    NULL, NULL);
+	if (ret)
+		wpa_printf(MSG_ERROR,
+			   "Failed to configure beacon control: ret=%d (%s)",
+			   ret, strerror(-ret));
+
+	return ret;
+}
+
 
 static struct hostapd_multi_hw_info *
 wpa_driver_get_multi_hw_info(void *priv, unsigned int *num_multi_hws)
@@ -16230,6 +16746,17 @@ const struct wpa_driver_ops wpa_driver_nl80211_ops = {
 	.set_qos_map = nl80211_set_qos_map,
 	.get_wowlan = nl80211_get_wowlan,
 	.set_wowlan = nl80211_set_wowlan,
+	.configure_edcca_enable = nl80211_configure_edcca_enable,
+	.configure_edcca_threshold = nl80211_configure_edcca_threshold,
+	.get_edcca = nl80211_get_edcca,
+	.mu_ctrl = nl80211_mu_onoff,
+	.mu_dump = nl80211_mu_dump,
+	.amsdu_ctrl = nl80211_amsdu_ctrl,
+	.amsdu_dump = nl80211_amsdu_dump,
+	.amnt_set = nl80211_amnt_set,
+	.amnt_dump = nl80211_amnt_dump,
+	.txpower_ctrl = nl80211_txpower_ctrl,
+	.beacon_ctrl = nl80211_beacon_ctrl,
 	.set_mac_addr = nl80211_set_mac_addr,
 #ifdef CONFIG_MESH
 	.init_mesh = wpa_driver_nl80211_init_mesh,
