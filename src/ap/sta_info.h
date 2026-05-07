@@ -18,6 +18,9 @@
 #include "crypto/sha384.h"
 #include "pasn/pasn_common.h"
 #include "hostapd.h"
+#ifdef CONFIG_IEEE80211BE
+#include "scs.h"
+#endif /* CONFIG_IEEE80211BE */
 
 /* STA flags */
 #define WLAN_STA_AUTH BIT(0)
@@ -348,6 +351,7 @@ struct sta_info {
 	struct mld_info mld_info;
 	u8 mld_assoc_link_id;
 	struct link_reconf_req_list *reconf_req;
+	struct scs_session_status scs_session[SCS_MAX_CFG_CNT];
 #endif /* CONFIG_IEEE80211BE */
 
 	u16 max_idle_period; /* if nonzero, the granted BSS max idle period in

@@ -3333,6 +3333,17 @@ struct driver_sta_mlo_info {
 	} links[MAX_NUM_MLD_LINKS];
 };
 
+#define EID_EXT_QOS_CHAR_MAX_SIZE 44
+
+struct hostapd_scs_desc_info {
+	u8 id;
+	u8 req_type;
+	u8 dir;
+	u8 peer_addr[ETH_ALEN];
+	u8 qos_ie[EID_EXT_QOS_CHAR_MAX_SIZE];
+	u8 qos_ie_len;
+};
+
 /**
  * struct nan_band_config - NAN band specific configuration
  *
@@ -4730,6 +4741,15 @@ struct wpa_driver_ops {
 	 */
 	int (*set_qos_map)(void *priv, const u8 *qos_map_set,
 			   u8 qos_map_set_len);
+
+	/**
+	 * set_scs - Configure a Stream Classification Service rule
+	 * @priv: Private driver interface data
+	 * @info: SCS descriptor information
+	 * @link_id: MLD link ID for the BSS
+	 */
+	int (*set_scs)(void *priv, struct hostapd_scs_desc_info *info,
+		       u8 link_id);
 
 	/**
 	 * br_add_ip_neigh - Add a neigh to the bridge ip neigh table

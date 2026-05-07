@@ -63,6 +63,9 @@
 #include "comeback_token.h"
 #include "nan_usd_ap.h"
 #include "pasn/pasn_common.h"
+#ifdef CONFIG_IEEE80211BE
+#include "scs.h"
+#endif /* CONFIG_IEEE80211BE */
 
 #ifdef CONFIG_APUP
 #	include "apup.h"
@@ -8147,6 +8150,9 @@ static int handle_action(struct hostapd_data *hapd,
 		return 1;
 #endif /* CONFIG_NO_RRM */
 #ifdef CONFIG_IEEE80211BE
+	case WLAN_ACTION_ROBUST_AV_STREAMING:
+		hostapd_handle_scs(hapd, (const u8 *) mgmt, len);
+		return 1;
 	case WLAN_ACTION_PROTECTED_EHT:
 		ieee802_11_rx_protected_eht_action(hapd, mgmt, len);
 		return 1;

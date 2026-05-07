@@ -23,6 +23,9 @@
 #include "wpa_auth.h"
 #include "hw_features.h"
 #include "ap_drv_ops.h"
+#ifdef CONFIG_IEEE80211BE
+#include "scs.h"
+#endif /* CONFIG_IEEE80211BE */
 
 
 u32 hostapd_sta_flags_to_drv(u32 flags)
@@ -1548,3 +1551,15 @@ int hostapd_drv_beacon_ctrl(struct hostapd_data *hapd, u8 beacon_mode)
 
 	return hapd->driver->beacon_ctrl(hapd->drv_priv, beacon_mode);
 }
+
+
+#ifdef CONFIG_IEEE80211BE
+int hostapd_drv_set_scs(struct hostapd_data *hapd,
+			struct hostapd_scs_desc_info *info)
+{
+	if (!hapd->driver || !hapd->driver->set_scs)
+		return 0;
+
+	return hapd->driver->set_scs(hapd->drv_priv, info, hapd->mld_link_id);
+}
+#endif /* CONFIG_IEEE80211BE */

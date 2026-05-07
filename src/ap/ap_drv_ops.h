@@ -512,6 +512,9 @@ static inline int hostapd_drv_link_sta_remove(struct hostapd_data *hapd,
 					     addr);
 }
 
+int hostapd_drv_set_scs(struct hostapd_data *hapd,
+			struct hostapd_scs_desc_info *info);
+
 #endif /* CONFIG_IEEE80211BE */
 
 struct hostapd_multi_hw_info *
