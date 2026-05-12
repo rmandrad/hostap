@@ -1427,7 +1427,7 @@ static int hostapd_bss_radius_init(struct hostapd_data *hapd)
 
 		os_memset(&das_conf, 0, sizeof(das_conf));
 		das_conf.port = conf->radius_das_port;
-		das_conf.nas_identifier = conf->nas_identifier;
+		das_conf.nas_identifier = (const u8 *) conf->nas_identifier;
 		das_conf.shared_secret = conf->radius_das_shared_secret;
 		das_conf.shared_secret_len =
 			conf->radius_das_shared_secret_len;
@@ -3981,7 +3981,7 @@ int hostapd_add_iface(struct hapd_interfaces *interfaces, char *buf)
 	struct hostapd_data *hapd;
 	char *ptr;
 	size_t i, j;
-	const char *conf_file = NULL, *phy_name = NULL;
+	char *conf_file = NULL, *phy_name = NULL;
 
 	if (os_strncmp(buf, "bss_config=", 11) == 0) {
 		char *pos;

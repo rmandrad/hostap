@@ -2867,6 +2867,7 @@ static int hostapd_ctrl_iface_set_bw(struct hostapd_iface *iface, char *pos)
 #endif /* CONFIG_TESTING_OPTIONS */
 
 
+#ifdef CONFIG_CTRL_IFACE_MIB
 static int hostapd_ctrl_iface_mib(struct hostapd_data *hapd, char *reply,
 				  int reply_size, const char *param)
 {
@@ -2878,6 +2879,7 @@ static int hostapd_ctrl_iface_mib(struct hostapd_data *hapd, char *reply,
 #endif /* RADIUS_SERVER */
 	return -1;
 }
+#endif /* CONFIG_CTRL_IFACE_MIB */
 
 
 static int hostapd_ctrl_iface_vendor(struct hostapd_data *hapd, char *cmd,
@@ -4952,7 +4954,7 @@ static void hostapd_ctrl_iface_receive(int sock, void *eloop_ctx,
 
 	if (os_strcmp(pos, "PING") == 0)
 		level = MSG_EXCESSIVE;
-	wpa_hexdump_ascii(level, "RX ctrl_iface", pos, res);
+	wpa_hexdump_ascii(level, "RX ctrl_iface", (const u8 *) pos, res);
 
 	reply_len = hostapd_ctrl_iface_receive_process(hapd, pos,
 						       reply, reply_size,
@@ -5098,7 +5100,8 @@ static void hostapd_mld_ctrl_iface_receive(int sock, void *eloop_ctx,
 	if (os_strcmp(pos, "PING") == 0)
 		level = MSG_EXCESSIVE;
 
-	wpa_hexdump_ascii(level, "RX MLD ctrl_iface", pos, res);
+	wpa_hexdump_ascii(level, "RX MLD ctrl_iface", (const u8 *) pos,
+			  res);
 
 	reply_len = hostapd_mld_ctrl_iface_receive_process(mld, pos,
 							   reply, reply_size,

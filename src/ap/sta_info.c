@@ -1781,16 +1781,6 @@ bool ap_sta_set_authorized_flag(struct hostapd_data *hapd, struct sta_info *sta,
 		return false;
 
 	if (authorized) {
-		int mld_assoc_link_id = -1;
-
-#ifdef CONFIG_IEEE80211BE
-		if (ap_sta_is_mld(hapd, sta)) {
-			if (sta->mld_assoc_link_id == hapd->mld_link_id)
-				mld_assoc_link_id = sta->mld_assoc_link_id;
-			else
-				mld_assoc_link_id = -2;
-		}
-#endif /* CONFIG_IEEE80211BE */
 		sta->flags |= WLAN_STA_AUTHORIZED;
 	} else {
 		sta->flags &= ~WLAN_STA_AUTHORIZED;

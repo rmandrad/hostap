@@ -9198,7 +9198,6 @@ static int i802_set_wds_sta(void *priv, const u8 *addr, int aid, int val,
 	char name[IFNAMSIZ + 1];
 	union wpa_event_data event;
 	bool add_br = false;
-	int ret;
 
 	if (ifname_wds)
 		os_strlcpy(name, ifname_wds, IFNAMSIZ + 1);

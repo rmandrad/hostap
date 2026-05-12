@@ -409,6 +409,7 @@ void hostapd_handle_radio_measurement(struct hostapd_data *hapd,
 		hostapd_handle_nei_report_req(hapd, buf, len);
 		break;
 	case WLAN_RRM_LINK_MEASUREMENT_REPORT:
+		hostapd_handle_link_mesr_report(hapd, buf, len);
 		hostapd_ubus_handle_link_measurement(hapd, buf, len);
 		break;
 	default:

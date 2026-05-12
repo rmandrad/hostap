@@ -691,7 +691,7 @@ static dbus_bool_t _wpa_dbus_dict_entry_get_byte_array(
 	}
 	entry->bytearray_value = buffer;
 	wpa_hexdump_key(MSG_MSGDUMP, "dbus: byte array contents",
-			entry->bytearray_value, entry->array_len);
+			(const u8 *) entry->bytearray_value, entry->array_len);
 
 	/* Zero-length arrays are valid. */
 	if (entry->array_len == 0) {
@@ -747,7 +747,8 @@ static dbus_bool_t _wpa_dbus_dict_entry_get_uint16_array(
 	}
 	entry->uint16array_value = buffer;
 	wpa_hexdump_key(MSG_MSGDUMP, "dbus: uint16 array contents",
-			entry->bytearray_value, entry->array_len);
+			(const u8 *) entry->uint16array_value,
+			entry->array_len * sizeof(*entry->uint16array_value));
 
 	/* Zero-length arrays are valid. */
 	if (entry->array_len == 0) {

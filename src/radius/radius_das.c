@@ -544,7 +544,7 @@ static void radius_das_receive(int sock, void *eloop_ctx, void *sock_ctx)
 			continue;
 
 		if (das->nas_identifier && nasid_buf &&
-		    (nasid_len != os_strlen(das->nas_identifier) ||
+		    (nasid_len != os_strlen((const char *) das->nas_identifier) ||
 		     os_memcmp(das->nas_identifier, nasid_buf, nasid_len) != 0))
 			continue;
 
@@ -646,7 +646,8 @@ radius_das_init(struct radius_das_conf *conf)
 	das->disconnect = conf->disconnect;
 	das->coa = conf->coa;
 	if (conf->nas_identifier)
-		das->nas_identifier = os_strdup(conf->nas_identifier);
+		das->nas_identifier =
+			(u8 *) os_strdup((const char *) conf->nas_identifier);
 
 	os_memcpy(&das->client_addr, conf->client_addr,
 		  sizeof(das->client_addr));

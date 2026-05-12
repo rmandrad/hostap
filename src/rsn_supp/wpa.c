@@ -794,10 +794,12 @@ static int wpa_handle_ext_key_id(struct wpa_sm *sm,
 {
 	if (sm->ext_key_id) {
 		u16 key_id;
+		int level;
 
 		if (!kde->key_id) {
+			level = sm->use_ext_key_id ? MSG_INFO : MSG_DEBUG;
 			wpa_msg(sm->ctx->msg_ctx,
-				sm->use_ext_key_id ? MSG_INFO : MSG_DEBUG,
+				level,
 				"RSN: No Key ID in Extended Key ID handshake");
 			sm->keyidx_active = 0;
 			return sm->use_ext_key_id ? -1 : 0;
@@ -4232,7 +4234,7 @@ out:
 }
 
 
-#ifdef CONFIG_CTRL_IFACE
+#ifdef CONFIG_CTRL_IFACE_MIB
 static u32 wpa_key_mgmt_suite(struct wpa_sm *sm)
 {
 	switch (sm->key_mgmt) {

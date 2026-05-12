@@ -1492,7 +1492,8 @@ dpp_pkex_derive_Qi(const struct dpp_curve_params *curve, const u8 *mac_init,
 		len[num_elem] = os_strlen(identifier);
 		num_elem++;
 	}
-	wpa_hexdump_ascii_key(MSG_DEBUG, "DPP: code", code, code_len);
+	wpa_hexdump_ascii_key(MSG_DEBUG, "DPP: code", (const u8 *) code,
+			      code_len);
 	addr[num_elem] = (const u8 *) code;
 	len[num_elem] = code_len;
 	num_elem++;
@@ -1567,7 +1568,8 @@ dpp_pkex_derive_Qr(const struct dpp_curve_params *curve, const u8 *mac_resp,
 		len[num_elem] = os_strlen(identifier);
 		num_elem++;
 	}
-	wpa_hexdump_ascii_key(MSG_DEBUG, "DPP: code", code, code_len);
+	wpa_hexdump_ascii_key(MSG_DEBUG, "DPP: code", (const u8 *) code,
+			      code_len);
 	addr[num_elem] = (const u8 *) code;
 	len[num_elem] = code_len;
 	num_elem++;
