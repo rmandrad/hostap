@@ -5461,6 +5461,14 @@ static int nl80211_unsol_bcast_probe_resp(struct i802_bss *bss,
 			   bss->ifname);
 		return -1;
 	}
+        /* Unsolicited broadcast Probe Response is a 6 GHz-only mechanism, so a
+         * template is only generated for 6 GHz links. Emitting the interval
+         * without a template makes the kernel reject START_AP with -EINVAL
+         * (see nl80211_parse_unsol_bcast_probe_resp()), which silently kills
+         * 2.4/5 GHz affiliated links of an AP MLD. Skip the attribute entirely
+         * when there is no template rather than sending an invalid one. */
+        if (!ubpr->unsol_bcast_probe_resp_tmpl)
+               return 0;
 
 	wpa_printf(MSG_DEBUG,
 		   "nl80211: Unsolicited broadcast Probe Response frame interval: %u",
